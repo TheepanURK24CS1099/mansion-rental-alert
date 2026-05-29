@@ -1,0 +1,44 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model RentalAlert {
+  id            String   @id @default(cuid())
+  roomType      String
+  actionLabel   String
+  deviceUserId  Int
+  updatedBy     String
+  source        String
+  messageStatus String
+  alertDate     String
+  alertTime     String
+  createdAt     DateTime @default(now())
+}
+
+model AppSettings {
+  id                 String   @id @default(cuid())
+  mansionName         String   @default("Mansion Rental Alert System")
+  ownerName           String   @default("Owner")
+  ownerWhatsAppNumber String   @default("")
+  caretakerName       String   @default("Caretaker")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model DeviceState {
+  id         String   @id @default(cuid())
+  status     String   @default("online")
+  lastSyncAt String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}

@@ -520,6 +520,9 @@ export default function RentalDashboard() {
                 <p className="max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
                   Biometric room rental alerts for owner notifications
                 </p>
+                <p className="max-w-2xl text-xs leading-5 text-cyan-200/80">
+                  Database foundation added; dashboard still running in local mock mode.
+                </p>
               </div>
             </div>
 
