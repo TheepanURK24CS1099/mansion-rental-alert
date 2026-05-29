@@ -60,6 +60,7 @@ const ROOM_ACTIONS: RoomAction[] = [
 
 const DUPLICATE_WINDOW_MS = 30_000;
 const STORAGE_KEY = "mansion-rental-alert-history";
+const EMPTY_ALERTS: RentalAlertRecord[] = [];
 
 let rentalAlertStore: RentalAlertRecord[] = [];
 let rentalAlertStoreInitialized = false;
@@ -185,6 +186,10 @@ function getRentalAlertSnapshot(): RentalAlertRecord[] {
   return rentalAlertStore;
 }
 
+function getRentalAlertServerSnapshot(): RentalAlertRecord[] {
+  return EMPTY_ALERTS;
+}
+
 function subscribeToRentalAlertStore(listener: () => void): () => void {
   rentalAlertStoreListeners.add(listener);
 
@@ -304,7 +309,7 @@ export default function Home() {
   const alerts = useSyncExternalStore(
     subscribeToRentalAlertStore,
     getRentalAlertSnapshot,
-    () => [],
+    getRentalAlertServerSnapshot,
   );
 
   const latestAlert = alerts[0];
