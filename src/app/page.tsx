@@ -1,65 +1,407 @@
-import Image from "next/image";
+"use client";
+
+import { useMemo, useState } from "react";
+
+type RoomType =
+  | "Single Room"
+  | "Double Room"
+  | "Monthly Room"
+  | "Family Room";
+
+type DeviceUserId = 101 | 102 | 103 | 104;
+
+type AlertStatus = "Mock Sent";
+
+interface RentalAlertRecord {
+  id: string;
+  roomType: RoomType;
+  actionLabel: string;
+  date: string;
+  time: string;
+  updatedBy: string;
+  messageStatus: AlertStatus;
+  deviceUserId: DeviceUserId;
+  createdAtMs: number;
+}
+
+interface RoomAction {
+  roomType: RoomType;
+  actionLabel: string;
+  deviceUserId: DeviceUserId;
+  accent: string;
+}
+
+const ROOM_ACTIONS: RoomAction[] = [
+  {
+    roomType: "Single Room",
+    actionLabel: "Single Room Rented",
+    deviceUserId: 101,
+    accent: "from-emerald-500 to-teal-500",
+  },
+  {
+    roomType: "Double Room",
+    actionLabel: "Double Room Rented",
+    deviceUserId: 102,
+    accent: "from-sky-500 to-cyan-500",
+  },
+  {
+    roomType: "Monthly Room",
+    actionLabel: "Monthly Room Rented",
+    deviceUserId: 103,
+    accent: "from-violet-500 to-fuchsia-500",
+  },
+  {
+    roomType: "Family Room",
+    actionLabel: "Family Room Rented",
+    deviceUserId: 104,
+    accent: "from-amber-500 to-orange-500",
+  },
+];
+
+const DUPLICATE_WINDOW_MS = 30_000;
+
+function formatDateParts(timestamp: number): { date: string; time: string } {
+  const dateObject = new Date(timestamp);
+
+  return {
+    date: dateObject.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    }),
+    time: dateObject.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      second: "2-digit",
+    }),
+  };
+}
+
+function createAlertRecord(action: RoomAction): RentalAlertRecord {
+  const createdAtMs = Date.now();
+  const parts = formatDateParts(createdAtMs);
+
+  return {
+    id: crypto.randomUUID(),
+    roomType: action.roomType,
+    actionLabel: action.actionLabel,
+    date: parts.date,
+    time: parts.time,
+    updatedBy: "Caretaker",
+    messageStatus: "Mock Sent",
+    deviceUserId: action.deviceUserId,
+    createdAtMs,
+  };
+}
+
+function getNextRoomActionResult(
+  alerts: RentalAlertRecord[],
+  action: RoomAction,
+): { duplicateWarning: string | null; record: RentalAlertRecord | null } {
+  const nowMs = Date.now();
+  const mostRecentSameRoom = alerts.find(
+    (alert) => alert.roomType === action.roomType,
+  );
+
+  if (
+    mostRecentSameRoom &&
+    nowMs - mostRecentSameRoom.createdAtMs < DUPLICATE_WINDOW_MS
+  ) {
+    return {
+      duplicateWarning:
+        "Duplicate ignored: same room type was already recorded within 30 seconds.",
+      record: null,
+    };
+  }
+
+  return {
+    duplicateWarning: null,
+    record: createAlertRecord(action),
+  };
+}
+
+function serializeAlerts(alerts: RentalAlertRecord[]): Omit<
+  RentalAlertRecord,
+  "createdAtMs"
+>[] {
+  return alerts.map((alert) => {
+    const { createdAtMs: _createdAtMs, ...rest } = alert;
+    void _createdAtMs;
+    return rest;
+  });
+}
+
+function getPreviewMessage(alert: RentalAlertRecord | undefined): string {
+  if (!alert) {
+    return "No rental alert selected yet. Click a room type to preview the owner message.";
+  }
+
+  return `Mansion Rental Alert
+
+${alert.roomType} rented.
+
+Date: ${alert.date}
+Time: ${alert.time}
+
+Updated by: ${alert.updatedBy}`;
+}
 
 export default function Home() {
+  const [alerts, setAlerts] = useState<RentalAlertRecord[]>([]);
+  const [warning, setWarning] = useState<string | null>(null);
+
+  const latestAlert = alerts[0];
+
+  const counts = useMemo(() => {
+    return ROOM_ACTIONS.reduce(
+      (summary, action) => {
+        summary[action.roomType] = alerts.filter(
+          (alert) => alert.roomType === action.roomType,
+        ).length;
+        summary.total += summary[action.roomType];
+        return summary;
+      },
+      {
+        "Single Room": 0,
+        "Double Room": 0,
+        "Monthly Room": 0,
+        "Family Room": 0,
+        total: 0,
+      } as Record<RoomType | "total", number>,
+    );
+  }, [alerts]);
+
+  const handleRoomAction = (action: RoomAction) => {
+    const result = getNextRoomActionResult(alerts, action);
+    const nextRecord = result.record;
+
+    if (result.duplicateWarning) {
+      setWarning(result.duplicateWarning);
+      return;
+    }
+
+    if (nextRecord) {
+      setAlerts((currentAlerts) => [nextRecord, ...currentAlerts]);
+      setWarning(null);
+    }
+  };
+
+  const clearHistory = () => {
+    setAlerts([]);
+    setWarning(null);
+  };
+
+  const exportHistory = () => {
+    const exportPayload = serializeAlerts(alerts);
+    const blob = new Blob([JSON.stringify(exportPayload, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = "mansion-rental-alert-history.json";
+    link.click();
+
+    URL.revokeObjectURL(url);
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.15),_transparent_35%),linear-gradient(180deg,_#0f172a_0%,_#020617_100%)] px-4 py-6 text-slate-100 sm:px-6 lg:px-8">
+      <div className="mx-auto flex max-w-7xl flex-col gap-6">
+        <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-slate-950/30 backdrop-blur xl:p-8">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="space-y-4">
+              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-sm font-medium text-emerald-200">
+                <span className="h-2 w-2 rounded-full bg-emerald-300" />
+                Local Mock Mode · No real WhatsApp sent
+              </div>
+              <div className="space-y-2">
+                <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+                  Mansion Rental Alert System
+                </h1>
+                <p className="max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
+                  Biometric room rental alerts for owner notifications
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-4 text-sm text-slate-300">
+              <p className="font-medium text-white">Current Mode</p>
+              <p className="mt-1">Client-side dashboard only</p>
+              <p>No database, no real messaging, no biometric device.</p>
+            </div>
+          </div>
+
+          {warning ? (
+            <div className="mt-6 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+              {warning}
+            </div>
+          ) : null}
+        </section>
+
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          {ROOM_ACTIONS.map((action) => (
+            <button
+              key={action.deviceUserId}
+              type="button"
+              onClick={() => handleRoomAction(action)}
+              className="group rounded-3xl border border-white/10 bg-white/5 p-5 text-left shadow-lg shadow-slate-950/20 transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-300"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+              <div className={`h-1.5 w-16 rounded-full bg-gradient-to-r ${action.accent}`} />
+              <div className="mt-4 flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                    Finger Action
+                  </p>
+                  <h2 className="mt-2 text-lg font-semibold text-white">
+                    {action.actionLabel}
+                  </h2>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-slate-950/60 px-3 py-2 text-right text-xs text-slate-300">
+                  Device ID
+                  <div className="text-base font-semibold text-white">
+                    {action.deviceUserId}
+                  </div>
+                </div>
+              </div>
+              <p className="mt-4 text-sm leading-6 text-slate-300">
+                Tap to create a local mock alert record for {action.roomType}.
+              </p>
+            </button>
+          ))}
+        </section>
+
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          {ROOM_ACTIONS.map((action) => (
+            <article
+              key={action.roomType}
+              className="rounded-3xl border border-white/10 bg-slate-950/60 p-5 shadow-lg shadow-slate-950/20"
             >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+              <p className="text-sm text-slate-400">Today Overview</p>
+              <h3 className="mt-2 text-xl font-semibold text-white">
+                {action.roomType}
+              </h3>
+              <div className="mt-4 flex items-end justify-between">
+                <span className="text-4xl font-bold text-cyan-300">
+                  {counts[action.roomType]}
+                </span>
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300">
+                  alerts today
+                </span>
+              </div>
+            </article>
+          ))}
+
+          <article className="rounded-3xl border border-cyan-400/20 bg-cyan-500/10 p-5 shadow-lg shadow-slate-950/20 xl:col-span-1">
+            <p className="text-sm text-cyan-100/80">Today Overview</p>
+            <h3 className="mt-2 text-xl font-semibold text-white">Total Alerts</h3>
+            <div className="mt-4 flex items-end justify-between">
+              <span className="text-4xl font-bold text-cyan-200">{counts.total}</span>
+              <span className="rounded-full border border-cyan-200/20 bg-cyan-200/10 px-3 py-1 text-xs text-cyan-100">
+                all room types
+              </span>
+            </div>
+          </article>
+        </section>
+
+        <section className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-lg shadow-slate-950/20">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-2xl font-semibold text-white">
+                  Recent Rental Alerts
+                </h3>
+                <p className="mt-1 text-sm text-slate-400">
+                  Latest alerts created in local state only
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={clearHistory}
+                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+                >
+                  Clear Mock History
+                </button>
+                <button
+                  type="button"
+                  onClick={exportHistory}
+                  className="rounded-full bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
+                >
+                  Export Mock History JSON
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-6 overflow-x-auto">
+              <table className="min-w-full divide-y divide-white/10 text-left text-sm">
+                <thead className="text-slate-400">
+                  <tr>
+                    <th className="pb-3 pr-4 font-medium">Time</th>
+                    <th className="pb-3 pr-4 font-medium">Room Type</th>
+                    <th className="pb-3 pr-4 font-medium">Device User ID</th>
+                    <th className="pb-3 pr-4 font-medium">Updated By</th>
+                    <th className="pb-3 font-medium">Message Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5 text-slate-200">
+                  {alerts.length > 0 ? (
+                    alerts.map((alert) => (
+                      <tr key={alert.id} className="align-top">
+                        <td className="py-4 pr-4 font-medium text-white">
+                          {alert.time}
+                        </td>
+                        <td className="py-4 pr-4">{alert.roomType}</td>
+                        <td className="py-4 pr-4">{alert.deviceUserId}</td>
+                        <td className="py-4 pr-4">{alert.updatedBy}</td>
+                        <td className="py-4 text-emerald-300">{alert.messageStatus}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td className="py-6 text-slate-400" colSpan={5}>
+                        No mock rental alerts yet. Click a room card to add one.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <section className="rounded-3xl border border-white/10 bg-slate-950/60 p-6 shadow-lg shadow-slate-950/20">
+              <h3 className="text-2xl font-semibold text-white">
+                Device Finger Mapping
+              </h3>
+              <div className="mt-5 space-y-3 text-sm text-slate-300">
+                <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                  <span>Thumb → Device User ID 101 → Single Room Rented</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                  <span>Index → Device User ID 102 → Double Room Rented</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                  <span>Middle → Device User ID 103 → Monthly Room Rented</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                  <span>Ring → Device User ID 104 → Family Room Rented</span>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-lg shadow-slate-950/20">
+              <h3 className="text-2xl font-semibold text-white">
+                WhatsApp Message Preview
+              </h3>
+              <pre className="mt-5 whitespace-pre-wrap rounded-2xl border border-white/10 bg-slate-950/70 p-4 text-sm leading-6 text-slate-200">
+                {getPreviewMessage(latestAlert)}
+              </pre>
+            </section>
+          </div>
+        </section>
+      </div>
+    </main>
   );
 }
