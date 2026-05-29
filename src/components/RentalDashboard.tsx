@@ -1,8 +1,16 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { clearSessionValue } from "@/lib/sessionStore";
+import {
+  DEFAULT_SETTINGS,
+  formatOwnerWhatsAppNumber,
+  getSettingsServerSnapshot,
+  getSettingsSnapshot,
+  subscribeToSettingsStore,
+} from "@/lib/settingsStore";
 
 type RoomType =
   | "Single Room"
@@ -237,7 +245,10 @@ function formatDateParts(timestamp: number): { date: string; time: string } {
   };
 }
 
-function createAlertRecord(action: RoomAction): RentalAlertRecord {
+function createAlertRecord(
+  action: RoomAction,
+  caretakerName: string,
+): RentalAlertRecord {
   const createdAtMs = Date.now();
   const parts = formatDateParts(createdAtMs);
 
@@ -247,7 +258,7 @@ function createAlertRecord(action: RoomAction): RentalAlertRecord {
     actionLabel: action.actionLabel,
     date: parts.date,
     time: parts.time,
-    updatedBy: "Caretaker",
+    updatedBy: caretakerName,
     messageStatus: "Mock Sent",
     deviceUserId: action.deviceUserId,
     createdAtMs,
@@ -257,6 +268,7 @@ function createAlertRecord(action: RoomAction): RentalAlertRecord {
 function getNextRoomActionResult(
   alerts: RentalAlertRecord[],
   action: RoomAction,
+  caretakerName: string,
 ): { duplicateWarning: string | null; record: RentalAlertRecord | null } {
   const nowMs = Date.now();
   const mostRecentSameRoom = alerts.find(
@@ -276,7 +288,7 @@ function getNextRoomActionResult(
 
   return {
     duplicateWarning: null,
-    record: createAlertRecord(action),
+    record: createAlertRecord(action, caretakerName),
   };
 }
 
@@ -313,9 +325,25 @@ export default function RentalDashboard() {
     getRentalAlertSnapshot,
     getRentalAlertServerSnapshot,
   );
+  const settings = useSyncExternalStore(
+    subscribeToSettingsStore,
+    getSettingsSnapshot,
+    getSettingsServerSnapshot,
+  );
   const router = useRouter();
 
   const latestAlert = alerts[0];
+  const mansionName =
+    settings.mansionName.trim().length > 0
+      ? settings.mansionName
+      : DEFAULT_SETTINGS.mansionName;
+  const caretakerName =
+    settings.caretakerName.trim().length > 0
+      ? settings.caretakerName
+      : DEFAULT_SETTINGS.caretakerName;
+  const ownerWhatsAppLabel = formatOwnerWhatsAppNumber(
+    settings.ownerWhatsAppNumber,
+  );
 
   const counts = useMemo(() => {
     return ROOM_ACTIONS.reduce(
@@ -337,7 +365,7 @@ export default function RentalDashboard() {
   }, [alerts]);
 
   const handleRoomAction = (action: RoomAction) => {
-    const result = getNextRoomActionResult(alerts, action);
+    const result = getNextRoomActionResult(alerts, action, caretakerName);
     const nextRecord = result.record;
 
     if (result.duplicateWarning) {
@@ -393,7 +421,7 @@ export default function RentalDashboard() {
               </div>
               <div className="space-y-2">
                 <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                  Mansion Rental Alert System
+                  {mansionName}
                 </h1>
                 <p className="max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
                   Biometric room rental alerts for owner notifications
@@ -405,13 +433,28 @@ export default function RentalDashboard() {
               <p className="font-medium text-white">Current Mode</p>
               <p className="mt-1">Client-side dashboard only</p>
               <p>No database, no real messaging, no biometric device.</p>
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="mt-4 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
-              >
-                Logout
-              </button>
+              <p className="mt-3 text-xs text-slate-400">{ownerWhatsAppLabel}</p>
+              <nav className="mt-4 flex flex-wrap gap-2">
+                <Link
+                  href="/dashboard"
+                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+                >
+                  Dashboard
+                </Link>
+                <Link
+                  href="/settings"
+                  className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-sm font-medium text-cyan-100"
+                >
+                  Settings
+                </Link>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+                >
+                  Logout
+                </button>
+              </nav>
             </div>
           </div>
 
