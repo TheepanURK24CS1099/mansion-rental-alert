@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 
 type RoomType =
   | "Single Room"
@@ -59,6 +59,159 @@ const ROOM_ACTIONS: RoomAction[] = [
 ];
 
 const DUPLICATE_WINDOW_MS = 30_000;
+const STORAGE_KEY = "mansion-rental-alert-history";
+
+let rentalAlertStore: RentalAlertRecord[] = [];
+let rentalAlertStoreInitialized = false;
+const rentalAlertStoreListeners = new Set<() => void>();
+
+function isRoomType(value: string): value is RoomType {
+  return (
+    value === "Single Room" ||
+    value === "Double Room" ||
+    value === "Monthly Room" ||
+    value === "Family Room"
+  );
+}
+
+function isDeviceUserId(value: number): value is DeviceUserId {
+  return value === 101 || value === 102 || value === 103 || value === 104;
+}
+
+function isAlertStatus(value: string): value is AlertStatus {
+  return value === "Mock Sent";
+}
+
+function parseStoredAlerts(rawValue: string | null): RentalAlertRecord[] {
+  if (!rawValue) {
+    return [];
+  }
+
+  try {
+    const parsedValue: unknown = JSON.parse(rawValue);
+
+    if (!Array.isArray(parsedValue)) {
+      return [];
+    }
+
+    return parsedValue.flatMap((item) => {
+      if (typeof item !== "object" || item === null) {
+        return [];
+      }
+
+      const record = item as Record<string, unknown>;
+      const roomType = record.roomType;
+      const actionLabel = record.actionLabel;
+      const date = record.date;
+      const time = record.time;
+      const updatedBy = record.updatedBy;
+      const messageStatus = record.messageStatus;
+      const deviceUserId = record.deviceUserId;
+      const createdAtMs = record.createdAtMs;
+
+      if (
+        typeof roomType !== "string" ||
+        !isRoomType(roomType) ||
+        typeof actionLabel !== "string" ||
+        typeof date !== "string" ||
+        typeof time !== "string" ||
+        typeof updatedBy !== "string" ||
+        typeof messageStatus !== "string" ||
+        !isAlertStatus(messageStatus) ||
+        typeof deviceUserId !== "number" ||
+        !isDeviceUserId(deviceUserId) ||
+        typeof createdAtMs !== "number"
+      ) {
+        return [];
+      }
+
+      return [
+        {
+          id:
+            typeof record.id === "string" && record.id.length > 0
+              ? record.id
+              : crypto.randomUUID(),
+          roomType,
+          actionLabel,
+          date,
+          time,
+          updatedBy,
+          messageStatus,
+          deviceUserId,
+          createdAtMs,
+        },
+      ];
+    });
+  } catch {
+    return [];
+  }
+}
+
+function readStoredAlerts(): RentalAlertRecord[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  return parseStoredAlerts(window.localStorage.getItem(STORAGE_KEY));
+}
+
+function persistAlerts(alerts: RentalAlertRecord[]): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(alerts));
+}
+
+function removeStoredAlerts(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.removeItem(STORAGE_KEY);
+}
+
+function initializeRentalAlertStore(): void {
+  if (rentalAlertStoreInitialized || typeof window === "undefined") {
+    return;
+  }
+
+  rentalAlertStore = readStoredAlerts();
+  rentalAlertStoreInitialized = true;
+}
+
+function getRentalAlertSnapshot(): RentalAlertRecord[] {
+  initializeRentalAlertStore();
+  return rentalAlertStore;
+}
+
+function subscribeToRentalAlertStore(listener: () => void): () => void {
+  rentalAlertStoreListeners.add(listener);
+
+  return () => {
+    rentalAlertStoreListeners.delete(listener);
+  };
+}
+
+function notifyRentalAlertStoreListeners(): void {
+  for (const listener of rentalAlertStoreListeners) {
+    listener();
+  }
+}
+
+function replaceRentalAlertStore(alerts: RentalAlertRecord[]): void {
+  rentalAlertStore = alerts;
+  rentalAlertStoreInitialized = true;
+  persistAlerts(alerts);
+  notifyRentalAlertStoreListeners();
+}
+
+function clearRentalAlertStore(): void {
+  rentalAlertStore = [];
+  rentalAlertStoreInitialized = true;
+  removeStoredAlerts();
+  notifyRentalAlertStoreListeners();
+}
 
 function formatDateParts(timestamp: number): { date: string; time: string } {
   const dateObject = new Date(timestamp);
@@ -147,8 +300,12 @@ Updated by: ${alert.updatedBy}`;
 }
 
 export default function Home() {
-  const [alerts, setAlerts] = useState<RentalAlertRecord[]>([]);
   const [warning, setWarning] = useState<string | null>(null);
+  const alerts = useSyncExternalStore(
+    subscribeToRentalAlertStore,
+    getRentalAlertSnapshot,
+    () => [],
+  );
 
   const latestAlert = alerts[0];
 
@@ -181,14 +338,19 @@ export default function Home() {
     }
 
     if (nextRecord) {
-      setAlerts((currentAlerts) => [nextRecord, ...currentAlerts]);
+      replaceRentalAlertStore([nextRecord, ...alerts]);
       setWarning(null);
     }
   };
 
   const clearHistory = () => {
-    setAlerts([]);
+    clearRentalAlertStore();
     setWarning(null);
+  };
+
+  const resetLocalStorage = () => {
+    removeStoredAlerts();
+    setWarning("Local storage reset: mansion-rental-alert-history was removed.");
   };
 
   const exportHistory = () => {
@@ -315,8 +477,18 @@ export default function Home() {
                 <p className="mt-1 text-sm text-slate-400">
                   Latest alerts created in local state only
                 </p>
+                <p className="mt-1 text-xs text-cyan-200/90">
+                  Saved locally in this browser
+                </p>
               </div>
               <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={resetLocalStorage}
+                  className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-sm font-medium text-cyan-100 transition hover:bg-cyan-400/20"
+                >
+                  Reset Local Storage
+                </button>
                 <button
                   type="button"
                   onClick={clearHistory}
