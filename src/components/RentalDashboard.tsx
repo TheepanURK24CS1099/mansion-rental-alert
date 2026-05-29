@@ -11,6 +11,13 @@ import {
   getSettingsSnapshot,
   subscribeToSettingsStore,
 } from "@/lib/settingsStore";
+import {
+  formatDeviceSyncTime,
+  getDeviceStateServerSnapshot,
+  getDeviceStateSnapshot,
+  setDeviceState,
+  subscribeToDeviceState,
+} from "@/lib/deviceStore";
 
 type RoomType =
   | "Single Room"
@@ -22,6 +29,8 @@ type DeviceUserId = 101 | 102 | 103 | 104;
 
 type AlertStatus = "Mock Sent";
 
+type AlertSource = "Dashboard Button" | "Mock Device Scan";
+
 interface RentalAlertRecord {
   id: string;
   roomType: RoomType;
@@ -31,6 +40,7 @@ interface RentalAlertRecord {
   updatedBy: string;
   messageStatus: AlertStatus;
   deviceUserId: DeviceUserId;
+  source: AlertSource;
   createdAtMs: number;
 }
 
@@ -39,6 +49,11 @@ interface RoomAction {
   actionLabel: string;
   deviceUserId: DeviceUserId;
   accent: string;
+}
+
+interface DeviceScanAction {
+  deviceUserId: DeviceUserId;
+  label: string;
 }
 
 const ROOM_ACTIONS: RoomAction[] = [
@@ -66,6 +81,13 @@ const ROOM_ACTIONS: RoomAction[] = [
     deviceUserId: 104,
     accent: "from-amber-500 to-orange-500",
   },
+];
+
+const DEVICE_SCAN_ACTIONS: DeviceScanAction[] = [
+  { deviceUserId: 101, label: "Simulate Device ID 101 Scan" },
+  { deviceUserId: 102, label: "Simulate Device ID 102 Scan" },
+  { deviceUserId: 103, label: "Simulate Device ID 103 Scan" },
+  { deviceUserId: 104, label: "Simulate Device ID 104 Scan" },
 ];
 
 const DUPLICATE_WINDOW_MS = 30_000;
@@ -118,6 +140,7 @@ function parseStoredAlerts(rawValue: string | null): RentalAlertRecord[] {
       const updatedBy = record.updatedBy;
       const messageStatus = record.messageStatus;
       const deviceUserId = record.deviceUserId;
+      const source = record.source;
       const createdAtMs = record.createdAtMs;
 
       if (
@@ -149,6 +172,11 @@ function parseStoredAlerts(rawValue: string | null): RentalAlertRecord[] {
           updatedBy,
           messageStatus,
           deviceUserId,
+          source:
+            typeof source === "string" &&
+            (source === "Dashboard Button" || source === "Mock Device Scan")
+              ? source
+              : "Dashboard Button",
           createdAtMs,
         },
       ];
@@ -248,6 +276,7 @@ function formatDateParts(timestamp: number): { date: string; time: string } {
 function createAlertRecord(
   action: RoomAction,
   caretakerName: string,
+  source: AlertSource,
 ): RentalAlertRecord {
   const createdAtMs = Date.now();
   const parts = formatDateParts(createdAtMs);
@@ -261,6 +290,7 @@ function createAlertRecord(
     updatedBy: caretakerName,
     messageStatus: "Mock Sent",
     deviceUserId: action.deviceUserId,
+    source,
     createdAtMs,
   };
 }
@@ -269,6 +299,7 @@ function getNextRoomActionResult(
   alerts: RentalAlertRecord[],
   action: RoomAction,
   caretakerName: string,
+  source: AlertSource,
 ): { duplicateWarning: string | null; record: RentalAlertRecord | null } {
   const nowMs = Date.now();
   const mostRecentSameRoom = alerts.find(
@@ -288,7 +319,7 @@ function getNextRoomActionResult(
 
   return {
     duplicateWarning: null,
-    record: createAlertRecord(action, caretakerName),
+    record: createAlertRecord(action, caretakerName, source),
   };
 }
 
@@ -315,7 +346,8 @@ ${alert.roomType} rented.
 Date: ${alert.date}
 Time: ${alert.time}
 
-Updated by: ${alert.updatedBy}`;
+Updated by: ${alert.updatedBy}
+Source: ${alert.source}`;
 }
 
 export default function RentalDashboard() {
@@ -329,6 +361,11 @@ export default function RentalDashboard() {
     subscribeToSettingsStore,
     getSettingsSnapshot,
     getSettingsServerSnapshot,
+  );
+  const deviceState = useSyncExternalStore(
+    subscribeToDeviceState,
+    getDeviceStateSnapshot,
+    getDeviceStateServerSnapshot,
   );
   const router = useRouter();
 
@@ -344,6 +381,9 @@ export default function RentalDashboard() {
   const ownerWhatsAppLabel = formatOwnerWhatsAppNumber(
     settings.ownerWhatsAppNumber,
   );
+  const deviceStatusLabel =
+    deviceState.status === "online" ? "Mock Online" : "Mock Offline";
+  const lastSyncLabel = formatDeviceSyncTime(deviceState.lastSyncAt);
 
   const counts = useMemo(() => {
     return ROOM_ACTIONS.reduce(
@@ -365,7 +405,12 @@ export default function RentalDashboard() {
   }, [alerts]);
 
   const handleRoomAction = (action: RoomAction) => {
-    const result = getNextRoomActionResult(alerts, action, caretakerName);
+    const result = getNextRoomActionResult(
+      alerts,
+      action,
+      caretakerName,
+      "Dashboard Button",
+    );
     const nextRecord = result.record;
 
     if (result.duplicateWarning) {
@@ -377,6 +422,53 @@ export default function RentalDashboard() {
       replaceRentalAlertStore([nextRecord, ...alerts]);
       setWarning(null);
     }
+  };
+
+  const handleDeviceScan = (deviceUserId: DeviceUserId) => {
+    if (deviceState.status === "offline") {
+      setWarning("Mock device is offline. Scan ignored.");
+      return;
+    }
+
+    const action = ROOM_ACTIONS.find(
+      (roomAction) => roomAction.deviceUserId === deviceUserId,
+    );
+
+    if (!action) {
+      return;
+    }
+
+    const result = getNextRoomActionResult(
+      alerts,
+      action,
+      caretakerName,
+      "Mock Device Scan",
+    );
+
+    if (result.duplicateWarning) {
+      setWarning(result.duplicateWarning);
+      return;
+    }
+
+    if (result.record) {
+      replaceRentalAlertStore([result.record, ...alerts]);
+      setWarning(null);
+    }
+  };
+
+  const handleDeviceToggle = () => {
+    setDeviceState({
+      ...deviceState,
+      status: deviceState.status === "online" ? "offline" : "online",
+    });
+  };
+
+  const handleManualSync = () => {
+    setDeviceState({
+      ...deviceState,
+      lastSyncAt: new Date().toISOString(),
+    });
+    setWarning("Mock device sync completed.");
   };
 
   const clearHistory = () => {
@@ -530,6 +622,67 @@ export default function RentalDashboard() {
           </article>
         </section>
 
+        <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-lg shadow-slate-950/20">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 className="text-2xl font-semibold text-white">
+                Mock Device Sync Panel
+              </h3>
+              <p className="mt-1 text-sm text-slate-400">
+                Simulate biometric device scans before real hardware integration.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-slate-300">
+              <p className="text-xs uppercase tracking-[0.25em] text-slate-500">
+                Device Status
+              </p>
+              <p className="mt-1 font-semibold text-white">{deviceStatusLabel}</p>
+              <p className="mt-2 text-xs text-slate-400">Last Sync Time</p>
+              <p className="text-sm text-slate-200">{lastSyncLabel}</p>
+            </div>
+          </div>
+
+          <div className="mt-5 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={handleDeviceToggle}
+              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+            >
+              {deviceState.status === "online"
+                ? "Set Mock Offline"
+                : "Set Mock Online"}
+            </button>
+            <button
+              type="button"
+              onClick={handleManualSync}
+              className="rounded-full bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
+            >
+              Manual Sync
+            </button>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {DEVICE_SCAN_ACTIONS.map((scanAction) => (
+              <button
+                key={scanAction.deviceUserId}
+                type="button"
+                onClick={() => handleDeviceScan(scanAction.deviceUserId)}
+                className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-4 text-left text-sm text-white transition hover:bg-slate-900/80"
+              >
+                {scanAction.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-white/10 bg-slate-950/40 p-4 text-sm text-slate-300">
+            <p className="font-medium text-white">Device User ID Mapping</p>
+            <p className="mt-2">101 = Single Room</p>
+            <p>102 = Double Room</p>
+            <p>103 = Monthly Room</p>
+            <p>104 = Family Room</p>
+          </div>
+        </section>
+
         <section className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
           <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-lg shadow-slate-950/20">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -577,6 +730,7 @@ export default function RentalDashboard() {
                     <th className="pb-3 pr-4 font-medium">Room Type</th>
                     <th className="pb-3 pr-4 font-medium">Device User ID</th>
                     <th className="pb-3 pr-4 font-medium">Updated By</th>
+                    <th className="pb-3 pr-4 font-medium">Source</th>
                     <th className="pb-3 font-medium">Message Status</th>
                   </tr>
                 </thead>
@@ -590,12 +744,13 @@ export default function RentalDashboard() {
                         <td className="py-4 pr-4">{alert.roomType}</td>
                         <td className="py-4 pr-4">{alert.deviceUserId}</td>
                         <td className="py-4 pr-4">{alert.updatedBy}</td>
+                        <td className="py-4 pr-4">{alert.source}</td>
                         <td className="py-4 text-emerald-300">{alert.messageStatus}</td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td className="py-6 text-slate-400" colSpan={5}>
+                      <td className="py-6 text-slate-400" colSpan={6}>
                         No mock rental alerts yet. Click a room card to add one.
                       </td>
                     </tr>
