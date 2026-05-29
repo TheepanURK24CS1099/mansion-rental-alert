@@ -425,7 +425,9 @@ export default function RentalDashboard() {
   };
 
   const handleDeviceScan = (deviceUserId: DeviceUserId) => {
-    if (deviceState.status === "offline") {
+    const currentDeviceState = getDeviceStateSnapshot();
+
+    if (currentDeviceState.status === "offline") {
       setWarning("Mock device is offline. Scan ignored.");
       return;
     }
