@@ -999,7 +999,9 @@ export default function RentalDashboard() {
               <div className="mt-3 inline-flex rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-xs font-medium text-cyan-100">
                 Database Mode: {databaseModeLabel}
               </div>
-              <p className="mt-3 text-xs text-slate-400">{ownerWhatsAppLabel}</p>
+              <p className="mt-3 text-xs text-slate-400" data-testid="owner-whatsapp-label">
+                {ownerWhatsAppLabel}
+              </p>
               <nav className="mt-4 flex flex-wrap gap-2">
                 <Link
                   href="/dashboard"
@@ -1103,7 +1105,12 @@ export default function RentalDashboard() {
             <p className="text-sm text-cyan-100/80">Today Overview</p>
             <h3 className="mt-2 text-xl font-semibold text-white">Total Alerts</h3>
             <div className="mt-4 flex items-end justify-between">
-              <span className="text-4xl font-bold text-cyan-200">{counts.total}</span>
+              <span
+                className="text-4xl font-bold text-cyan-200"
+                data-testid="total-alerts-count"
+              >
+                {counts.total}
+              </span>
               <span className="rounded-full border border-cyan-200/20 bg-cyan-200/10 px-3 py-1 text-xs text-cyan-100">
                 all room types
               </span>
@@ -1125,9 +1132,13 @@ export default function RentalDashboard() {
               <p className="text-xs uppercase tracking-[0.25em] text-slate-500">
                 Device Status
               </p>
-              <p className="mt-1 font-semibold text-white">{deviceStatusLabel}</p>
+              <p className="mt-1 font-semibold text-white" data-testid="device-status-label">
+                {deviceStatusLabel}
+              </p>
               <p className="mt-2 text-xs text-slate-400">Last Sync Time</p>
-              <p className="text-sm text-slate-200">{lastSyncLabel}</p>
+              <p className="text-sm text-slate-200" data-testid="last-sync-label">
+                {lastSyncLabel}
+              </p>
             </div>
           </div>
 
@@ -1232,7 +1243,11 @@ export default function RentalDashboard() {
                     ))
                   ) : (
                     <tr>
-                      <td className="py-6 text-slate-400" colSpan={6}>
+                      <td
+                        className="py-6 text-slate-400"
+                        colSpan={6}
+                        data-testid="recent-alerts-empty"
+                      >
                         No mock rental alerts yet. Click a room card to add one.
                       </td>
                     </tr>
