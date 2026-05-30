@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { clearSessionValue } from "@/lib/sessionStore";
 import {
@@ -526,21 +526,25 @@ export default function RentalDashboard() {
         ? "Connected"
         : "Fallback";
 
+  const reloadRentalAlerts = useCallback(async (): Promise<RentalAlertRecord[]> => {
+    const response = await fetch("/api/rental-alerts", {
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      throw new Error(`GET /api/rental-alerts failed (${response.status})`);
+    }
+
+    const body: unknown = await response.json();
+    return parseRentalAlertApiResponse(body);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
     async function loadRentalAlerts() {
       try {
-        const response = await fetch("/api/rental-alerts", {
-          cache: "no-store",
-        });
-
-        if (!response.ok) {
-          throw new Error(`GET /api/rental-alerts failed (${response.status})`);
-        }
-
-        const body: unknown = await response.json();
-        const loadedAlerts = parseRentalAlertApiResponse(body);
+        const loadedAlerts = await reloadRentalAlerts();
 
         if (cancelled) {
           return;
@@ -556,7 +560,7 @@ export default function RentalDashboard() {
           return;
         }
 
-        replaceRentalAlertStore(fallbackAlerts);
+        replaceRentalAlertStore(fallbackAlerts, { persist: true });
         setDatabaseMode("fallback");
         setDatabaseNotice("Database unavailable. Showing local fallback history.");
       } finally {
@@ -571,7 +575,7 @@ export default function RentalDashboard() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadRentalAlerts]);
 
   const counts = useMemo(() => {
     return ROOM_ACTIONS.reduce(
@@ -640,6 +644,47 @@ export default function RentalDashboard() {
       setDatabaseMode("fallback");
       setDatabaseNotice("Database unavailable. Showing local fallback history.");
       setWarning("Database save failed. Alert saved locally as fallback.");
+    }
+  };
+
+  const handleClearDatabaseHistory = async () => {
+    const confirmed = window.confirm(
+      "Delete all rental alert records from the mansion database? This cannot be undone.",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/rental-alerts", {
+        method: "DELETE",
+      });
+      const body: unknown = await response.json();
+
+      if (
+        !response.ok ||
+        typeof body !== "object" ||
+        body === null ||
+        !("success" in body) ||
+        !body.success
+      ) {
+        throw new Error(
+          typeof body === "object" && body !== null && "error" in body
+            ? String((body as { error?: unknown }).error ?? "")
+            : `DELETE /api/rental-alerts failed (${response.status})`,
+        );
+      }
+
+      const refreshedAlerts = await reloadRentalAlerts().catch(() => []);
+      replaceRentalAlertStore(refreshedAlerts);
+      setDatabaseMode("connected");
+      setDatabaseNotice("Database rental alert history cleared.");
+      setWarning(null);
+    } catch {
+      setDatabaseMode("fallback");
+      setDatabaseNotice("Database unavailable. Showing local fallback history.");
+      setWarning("Database clear failed. Alert history not deleted.");
     }
   };
 
@@ -951,10 +996,10 @@ export default function RentalDashboard() {
                   Recent Rental Alerts
                 </h3>
                 <p className="mt-1 text-sm text-slate-400">
-                  Latest alerts created in local state only
+                  Latest alerts saved in PostgreSQL database
                 </p>
                 <p className="mt-1 text-xs text-cyan-200/90">
-                  Saved locally in this browser
+                  Loaded from mansion PostgreSQL database
                 </p>
               </div>
               <div className="flex flex-wrap gap-3">
@@ -974,6 +1019,13 @@ export default function RentalDashboard() {
                 </button>
                 <button
                   type="button"
+                  onClick={handleClearDatabaseHistory}
+                  className="rounded-full border border-rose-300/20 bg-rose-400/10 px-4 py-2 text-sm font-medium text-rose-100 transition hover:bg-rose-400/20"
+                >
+                  Clear Database History
+                </button>
+                <button
+                  type="button"
                   onClick={exportHistory}
                   className="rounded-full bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
                 >
@@ -983,7 +1035,7 @@ export default function RentalDashboard() {
             </div>
 
             <p className="mt-3 text-xs text-slate-400">
-              Database records are not deleted in this version.
+              Clear Local View does not delete database records.
             </p>
 
             <div className="mt-6 overflow-x-auto">

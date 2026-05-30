@@ -116,3 +116,19 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export async function DELETE() {
+  try {
+    const result = await prisma.rentalAlert.deleteMany();
+
+    return NextResponse.json({
+      success: true,
+      deletedCount: result.count,
+    });
+  } catch {
+    return NextResponse.json(
+      { success: false, error: "Unable to clear rental alert history." },
+      { status: 500 },
+    );
+  }
+}
