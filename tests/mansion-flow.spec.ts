@@ -75,6 +75,14 @@ async function ensureMockDeviceOnline(page: import('@playwright/test').Page) {
   }
 }
 
+async function ensureMockDeviceOffline(page: import('@playwright/test').Page) {
+  const deviceStatus = page.getByTestId('device-status-label');
+  if ((await deviceStatus.textContent())?.trim() === 'Mock Online') {
+    await page.getByRole('button', { name: 'Set Mock Offline' }).click();
+    await expect(deviceStatus).toHaveText('Mock Offline');
+  }
+}
+
 test.describe('Mansion rental alert flow', () => {
   test.beforeEach(async ({ request }) => {
     await clearTestData(request);
@@ -161,7 +169,7 @@ test.describe('Mansion rental alert flow', () => {
     await expect(page.getByText('Duplicate ignored: same room type was already recorded within 30 seconds.')).toBeVisible();
     await expect(page.getByTestId('total-alerts-count')).toHaveText('1');
 
-    await page.getByRole('button', { name: 'Set Mock Offline' }).click();
+    await ensureMockDeviceOffline(page);
     await page.reload();
     await expect(page.getByTestId('device-status-label')).toHaveText('Mock Offline');
 
@@ -261,6 +269,9 @@ test.describe('Mansion rental alert flow', () => {
       deviceUserId: TEST_WORKERS.attendanceWorker.singleRoomDeviceUserId,
       updatedBy: TEST_WORKERS.attendanceWorker.name,
     });
+    expect(
+      JSON.stringify(singleMappedAlertBody),
+    ).toContain(String(TEST_WORKERS.attendanceWorker.singleRoomDeviceUserId));
 
     await page.getByTestId('mapped-scan-input').fill(String(TEST_WORKERS.roomOnlyWorker.doubleRoomDeviceUserId));
     await page.getByTestId('mapped-scan-button').click();
@@ -278,8 +289,11 @@ test.describe('Mansion rental alert flow', () => {
       deviceUserId: TEST_WORKERS.roomOnlyWorker.doubleRoomDeviceUserId,
       updatedBy: TEST_WORKERS.roomOnlyWorker.name,
     });
+    expect(
+      JSON.stringify(doubleMappedAlertBody),
+    ).toContain(String(TEST_WORKERS.roomOnlyWorker.doubleRoomDeviceUserId));
 
-    await page.getByRole('button', { name: 'Set Mock Offline' }).click();
+    await ensureMockDeviceOffline(page);
     await page.getByTestId('mapped-scan-input').fill(String(TEST_WORKERS.attendanceWorker.monthlyRoomDeviceUserId));
     await page.getByTestId('mapped-scan-button').click();
     await expect(page.getByText('Mock device is offline. Scan ignored.')).toBeVisible();
@@ -290,7 +304,20 @@ test.describe('Mansion rental alert flow', () => {
     await page.reload();
     await expect(page.getByTestId('total-alerts-count')).toHaveText('0');
     await expect(page.getByTestId('recent-alerts-empty')).toBeVisible();
-    await expect(page.getByTestId('attendance-empty')).toBeVisible();
+
+    const attendanceCleanupResponse = await request.get('/api/worker-attendance');
+    expect(attendanceCleanupResponse.ok()).toBeTruthy();
+    const attendanceCleanupBody: unknown = await attendanceCleanupResponse.json();
+    expect(attendanceCleanupBody).toMatchObject({ success: true });
+    expect(
+      (attendanceCleanupBody as {
+        data?: Array<{ worker?: { name?: string } }>;
+      }).data?.some(
+        (log) =>
+          log.worker?.name === TEST_WORKERS.attendanceWorker.name ||
+          log.worker?.name === TEST_WORKERS.roomOnlyWorker.name,
+      ),
+    ).toBeFalsy();
 
     await page.getByRole('button', { name: 'Logout' }).click();
     await expect(page).toHaveURL(/\/login$/);

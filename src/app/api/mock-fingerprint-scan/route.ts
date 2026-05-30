@@ -138,7 +138,7 @@ export async function POST(request: Request) {
       data: {
         roomType,
         actionLabel: `${roomType} Rented`,
-        deviceUserId: mapping.deviceUserId,
+        deviceUserId: payload.deviceUserId,
         updatedBy: mapping.worker.name,
         source: "Mock Device Scan",
         messageStatus: "Mock Sent",

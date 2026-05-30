@@ -1192,15 +1192,16 @@ export default function RentalDashboard() {
                   Biometric room rental alerts for owner notifications
                 </p>
                 <p className="max-w-2xl text-xs leading-5 text-cyan-200/80">
-                  Database foundation added; dashboard still running in local mock mode.
+                  PostgreSQL database connected
                 </p>
               </div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-4 text-sm text-slate-300">
               <p className="font-medium text-white">Current Mode</p>
-              <p className="mt-1">Client-side dashboard only</p>
-              <p>No database, no real messaging, no biometric device.</p>
+              <p className="mt-1">Mock biometric mode active</p>
+              <p>No real WhatsApp sent yet</p>
+              <p>No real biometric device connected yet</p>
               <div className="mt-3 inline-flex rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-xs font-medium text-cyan-100">
                 Database Mode: {databaseModeLabel}
               </div>
@@ -1383,6 +1384,9 @@ export default function RentalDashboard() {
               <p className="mt-1 text-sm text-slate-400">
                 Use the mapped worker finger IDs to test attendance and room rental actions.
               </p>
+              <p className="mt-2 text-xs text-cyan-200/80">
+                In production, real biometric device sync will trigger this flow automatically. This manual input is only for testing.
+              </p>
               <div className="mt-4 flex flex-col gap-3 sm:flex-row">
                 <input
                   value={mappedScanDeviceUserId}
@@ -1405,7 +1409,7 @@ export default function RentalDashboard() {
             <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
               <h4 className="text-lg font-semibold text-white">Legacy Quick Mock Buttons</h4>
               <p className="mt-1 text-sm text-slate-400">
-                These are for testing only. Mapped FP ID scan is the correct flow for real device mapping.
+                These are only for development testing. The correct real-device flow is Workers page FP mapping + Mapped FP ID scan.
               </p>
               <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 {DEVICE_SCAN_ACTIONS.map((scanAction) => (
@@ -1553,7 +1557,7 @@ export default function RentalDashboard() {
                         colSpan={6}
                         data-testid="recent-alerts-empty"
                       >
-                        No mock rental alerts yet. Click a room card to add one.
+                        No rental alerts yet. Use a room action or mapped fingerprint scan to create one.
                       </td>
                     </tr>
                   )}
