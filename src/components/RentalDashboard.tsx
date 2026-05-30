@@ -30,6 +30,8 @@ type AlertStatus = "Mock Sent";
 
 type AlertSource = "Dashboard Button" | "Mock Device Scan";
 
+type AttendanceStatus = "IN" | "OUT";
+
 type DatabaseMode = "loading" | "connected" | "fallback";
 
 interface RentalAlertApiRecord {
@@ -81,6 +83,29 @@ interface RoomAction {
 interface DeviceScanAction {
   deviceUserId: DeviceUserId;
   label: string;
+}
+
+interface WorkerAttendanceApiRecord {
+  id: string;
+  deviceUserId: number;
+  status: AttendanceStatus;
+  attendanceDate: string;
+  attendanceTime: string;
+  source: string;
+  createdAt: string;
+  worker: {
+    name: string;
+  };
+}
+
+interface WorkerAttendanceRecord {
+  id: string;
+  deviceUserId: number;
+  status: AttendanceStatus;
+  attendanceDate: string;
+  attendanceTime: string;
+  source: string;
+  workerName: string;
 }
 
 const ROOM_ACTIONS: RoomAction[] = [
@@ -532,6 +557,57 @@ function parseDeviceStateApiResponse(body: unknown): MockDeviceState | null {
   return sanitizeDeviceStateRecord(record.data as Record<string, unknown>);
 }
 
+function isWorkerAttendanceApiRecord(value: unknown): value is WorkerAttendanceApiRecord {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+
+  return (
+    typeof record.id === "string" &&
+    typeof record.deviceUserId === "number" &&
+    (record.status === "IN" || record.status === "OUT") &&
+    typeof record.attendanceDate === "string" &&
+    typeof record.attendanceTime === "string" &&
+    typeof record.source === "string" &&
+    typeof record.createdAt === "string" &&
+    typeof record.worker === "object" &&
+    record.worker !== null &&
+    typeof (record.worker as Record<string, unknown>).name === "string"
+  );
+}
+
+function parseWorkerAttendanceApiResponse(body: unknown): WorkerAttendanceRecord[] {
+  if (typeof body !== "object" || body === null) {
+    return [];
+  }
+
+  const record = body as { success?: unknown; data?: unknown };
+
+  if (!record.success || !Array.isArray(record.data)) {
+    return [];
+  }
+
+  return record.data.flatMap((item) => {
+    if (!isWorkerAttendanceApiRecord(item)) {
+      return [];
+    }
+
+    return [
+      {
+        id: item.id,
+        deviceUserId: item.deviceUserId,
+        status: item.status,
+        attendanceDate: item.attendanceDate,
+        attendanceTime: item.attendanceTime,
+        source: item.source,
+        workerName: item.worker.name,
+      },
+    ];
+  });
+}
+
 export default function RentalDashboard() {
   const [isLoadingAlerts, setIsLoadingAlerts] = useState(true);
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
@@ -540,11 +616,16 @@ export default function RentalDashboard() {
   const [databaseNotice, setDatabaseNotice] = useState<string | null>(null);
   const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
   const [deviceNotice, setDeviceNotice] = useState<string | null>(null);
+  const [attendanceNotice, setAttendanceNotice] = useState<string | null>(null);
   const [settings, setSettings] = useState<MansionSettings>(DEFAULT_SETTINGS);
   const [deviceState, setDeviceStateState] = useState<MockDeviceState>(
     DEFAULT_DEVICE_STATE,
   );
   const [warning, setWarning] = useState<string | null>(null);
+  const [activityMessage, setActivityMessage] = useState<string | null>(null);
+  const [mappedScanDeviceUserId, setMappedScanDeviceUserId] = useState("");
+  const [attendanceLogs, setAttendanceLogs] = useState<WorkerAttendanceRecord[]>([]);
+  const [isLoadingAttendance, setIsLoadingAttendance] = useState(true);
   const alerts = useSyncExternalStore(
     subscribeToRentalAlertStore,
     getRentalAlertSnapshot,
@@ -576,7 +657,7 @@ export default function RentalDashboard() {
         : "Fallback";
 
   const isLoadingPage =
-    isLoadingAlerts || isLoadingSettings || isLoadingDeviceState;
+    isLoadingAlerts || isLoadingSettings || isLoadingDeviceState || isLoadingAttendance;
 
   const reloadRentalAlerts = useCallback(async (): Promise<RentalAlertRecord[]> => {
     const response = await fetch("/api/rental-alerts", {
@@ -589,6 +670,19 @@ export default function RentalDashboard() {
 
     const body: unknown = await response.json();
     return parseRentalAlertApiResponse(body);
+  }, []);
+
+  const reloadWorkerAttendance = useCallback(async (): Promise<WorkerAttendanceRecord[]> => {
+    const response = await fetch("/api/worker-attendance", {
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      throw new Error(`GET /api/worker-attendance failed (${response.status})`);
+    }
+
+    const body: unknown = await response.json();
+    return parseWorkerAttendanceApiResponse(body);
   }, []);
 
   useEffect(() => {
@@ -677,6 +771,40 @@ export default function RentalDashboard() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAttendanceLogs() {
+      try {
+        const loadedAttendance = await reloadWorkerAttendance();
+
+        if (cancelled) {
+          return;
+        }
+
+        setAttendanceLogs(loadedAttendance);
+        setAttendanceNotice(null);
+      } catch {
+        if (cancelled) {
+          return;
+        }
+
+        setAttendanceLogs([]);
+        setAttendanceNotice("Database unavailable. Attendance history fallback is active.");
+      } finally {
+        if (!cancelled) {
+          setIsLoadingAttendance(false);
+        }
+      }
+    }
+
+    void loadAttendanceLogs();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadWorkerAttendance]);
 
   useEffect(() => {
     let cancelled = false;
@@ -939,6 +1067,83 @@ export default function RentalDashboard() {
     setWarning("Mock device sync completed.");
   };
 
+  const handleMappedFingerprintScan = async () => {
+    if (deviceState.status === "offline") {
+      setWarning("Mock device is offline. Scan ignored.");
+      return;
+    }
+
+    const deviceUserId = Number(mappedScanDeviceUserId);
+
+    if (!Number.isInteger(deviceUserId)) {
+      setWarning("deviceUserId must be a number.");
+      return;
+    }
+
+    const response = await fetch("/api/mock-fingerprint-scan", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        deviceUserId,
+        source: "Mock Device Scan",
+      }),
+    });
+
+    const body: unknown = await response.json();
+
+    if (!response.ok) {
+      const errorMessage =
+        typeof body === "object" && body !== null && "error" in body
+          ? String((body as { error?: unknown }).error ?? "")
+          : "Unable to process mock scan.";
+      setWarning(errorMessage);
+      setActivityMessage(null);
+      return;
+    }
+
+    if (
+      typeof body === "object" &&
+      body !== null &&
+      "success" in body &&
+      (body as { success?: unknown }).success === true &&
+      "type" in body
+    ) {
+      const result = body as {
+        type?: unknown;
+        workerName?: unknown;
+        status?: unknown;
+        roomType?: unknown;
+      };
+
+      if (result.type === "attendance") {
+        setWarning(null);
+        setActivityMessage(
+          `Attendance marked: ${String(result.workerName ?? "Worker")} ${String(result.status ?? "IN")}`,
+        );
+        setMappedScanDeviceUserId("");
+        const refreshedAttendance = await reloadWorkerAttendance().catch(() => []);
+        setAttendanceLogs(refreshedAttendance);
+        return;
+      }
+
+      if (result.type === "rental") {
+        setWarning(null);
+        setActivityMessage(
+          `Rental alert created: ${String(result.roomType ?? "Room")} by ${String(result.workerName ?? "Worker")}`,
+        );
+        setMappedScanDeviceUserId("");
+        const refreshedAlerts = await reloadRentalAlerts().catch(() => []);
+        replaceRentalAlertStore(refreshedAlerts);
+        return;
+      }
+    }
+
+    setActivityMessage(null);
+    setWarning("Unable to process mock scan.");
+  };
+
   const exportHistory = () => {
     const exportPayload = serializeAlerts(alerts);
     const blob = new Blob([JSON.stringify(exportPayload, null, 2)], {
@@ -1015,6 +1220,12 @@ export default function RentalDashboard() {
                 >
                   Settings
                 </Link>
+                <Link
+                  href="/workers"
+                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+                >
+                  Workers
+                </Link>
                 <button
                   type="button"
                   onClick={handleLogout}
@@ -1029,6 +1240,11 @@ export default function RentalDashboard() {
           {warning ? (
             <div className="mt-6 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
               {warning}
+            </div>
+          ) : null}
+          {activityMessage ? (
+            <div className="mt-3 rounded-2xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
+              {activityMessage}
             </div>
           ) : null}
           {databaseNotice ? (
@@ -1161,17 +1377,49 @@ export default function RentalDashboard() {
             </button>
           </div>
 
-          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {DEVICE_SCAN_ACTIONS.map((scanAction) => (
-              <button
-                key={scanAction.deviceUserId}
-                type="button"
-                onClick={() => handleDeviceScan(scanAction.deviceUserId)}
-                className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-4 text-left text-sm text-white transition hover:bg-slate-900/80"
-              >
-                {scanAction.label}
-              </button>
-            ))}
+          <div className="mt-5 grid gap-4 xl:grid-cols-[1fr_1.2fr]">
+            <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+              <h4 className="text-lg font-semibold text-white">Mapped FP ID Test Scan</h4>
+              <p className="mt-1 text-sm text-slate-400">
+                Use the mapped worker finger IDs to test attendance and room rental actions.
+              </p>
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                <input
+                  value={mappedScanDeviceUserId}
+                  onChange={(event) => setMappedScanDeviceUserId(event.target.value)}
+                  placeholder="Device User ID"
+                  data-testid="mapped-scan-input"
+                  className="flex-1 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-300 focus:ring-2 focus:ring-cyan-300/30"
+                />
+                <button
+                  type="button"
+                  onClick={handleMappedFingerprintScan}
+                  data-testid="mapped-scan-button"
+                  className="rounded-full bg-cyan-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
+                >
+                  Simulate Mapped Fingerprint Scan
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+              <h4 className="text-lg font-semibold text-white">Legacy Quick Mock Buttons</h4>
+              <p className="mt-1 text-sm text-slate-400">
+                These are for testing only. Mapped FP ID scan is the correct flow for real device mapping.
+              </p>
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                {DEVICE_SCAN_ACTIONS.map((scanAction) => (
+                  <button
+                    key={scanAction.deviceUserId}
+                    type="button"
+                    onClick={() => handleDeviceScan(scanAction.deviceUserId)}
+                    className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-4 text-left text-sm text-white transition hover:bg-slate-900/80"
+                  >
+                    {scanAction.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div className="mt-5 rounded-2xl border border-white/10 bg-slate-950/40 p-4 text-sm text-slate-300">
@@ -1180,6 +1428,63 @@ export default function RentalDashboard() {
             <p>102 = Double Room</p>
             <p>103 = Monthly Room</p>
             <p>104 = Family Room</p>
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-lg shadow-slate-950/20">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 className="text-2xl font-semibold text-white">Staff Attendance</h3>
+              <p className="mt-1 text-sm text-slate-400">
+                Latest attendance logs from the worker attendance database.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-slate-300">
+              <p className="text-xs uppercase tracking-[0.25em] text-slate-500">Latest Logs</p>
+              <p className="mt-1 font-semibold text-white">{attendanceLogs.length}</p>
+            </div>
+          </div>
+
+          {attendanceNotice ? (
+            <div className="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+              {attendanceNotice}
+            </div>
+          ) : null}
+
+          <div className="mt-6 overflow-x-auto">
+            <table
+              className="min-w-full divide-y divide-white/10 text-left text-sm"
+              data-testid="staff-attendance-table"
+            >
+              <thead className="text-slate-400">
+                <tr>
+                  <th className="pb-3 pr-4 font-medium">Time</th>
+                  <th className="pb-3 pr-4 font-medium">Worker</th>
+                  <th className="pb-3 pr-4 font-medium">Device User ID</th>
+                  <th className="pb-3 pr-4 font-medium">Status</th>
+                  <th className="pb-3 font-medium">Source</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5 text-slate-200">
+                {attendanceLogs.length > 0 ? (
+                  attendanceLogs.map((log) => (
+                    <tr key={log.id} className="align-top">
+                      <td className="py-4 pr-4 font-medium text-white">{log.attendanceTime}</td>
+                      <td className="py-4 pr-4">{log.workerName}</td>
+                      <td className="py-4 pr-4">{log.deviceUserId}</td>
+                      <td className="py-4 pr-4">{log.status}</td>
+                      <td className="py-4">{log.source}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td className="py-6 text-slate-400" colSpan={5} data-testid="attendance-empty">
+                      No attendance logs yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </section>
 

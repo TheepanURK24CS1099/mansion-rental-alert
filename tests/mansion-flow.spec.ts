@@ -7,18 +7,81 @@ const TEST_SETTINGS = {
   caretakerName: 'Auto Caretaker',
 };
 
+const TEST_WORKERS = {
+  attendanceWorker: {
+    name: 'Auto Worker One',
+    phone: '9999999999',
+    attendanceDeviceUserId: 901,
+    singleRoomDeviceUserId: 902,
+    doubleRoomDeviceUserId: 903,
+    monthlyRoomDeviceUserId: 904,
+    familyRoomDeviceUserId: 905,
+  },
+  roomOnlyWorker: {
+    name: 'Auto Room Manager',
+    phone: '8888888888',
+    singleRoomDeviceUserId: 912,
+    doubleRoomDeviceUserId: 913,
+    monthlyRoomDeviceUserId: 914,
+    familyRoomDeviceUserId: 915,
+  },
+};
+
 async function clearAlertHistory(request: APIRequestContext) {
   const response = await request.delete('/api/rental-alerts');
   expect(response.ok()).toBeTruthy();
 }
 
+async function clearTestWorkers(request: APIRequestContext) {
+  const response = await request.get('/api/workers');
+  expect(response.ok()).toBeTruthy();
+
+  const body: unknown = await response.json();
+  if (typeof body !== 'object' || body === null || !('success' in body) || !(body as { success?: unknown }).success) {
+    return;
+  }
+
+  const record = body as { data?: unknown };
+  if (!Array.isArray(record.data)) {
+    return;
+  }
+
+  for (const item of record.data) {
+    if (typeof item !== 'object' || item === null) {
+      continue;
+    }
+
+    const worker = item as { id?: unknown; name?: unknown };
+    if (
+      typeof worker.id === 'string' &&
+      (worker.name === TEST_WORKERS.attendanceWorker.name || worker.name === TEST_WORKERS.roomOnlyWorker.name)
+    ) {
+      const deleteResponse = await request.delete(`/api/workers/${worker.id}`);
+      expect(deleteResponse.ok()).toBeTruthy();
+    }
+  }
+}
+
+async function clearTestData(request: APIRequestContext) {
+  await clearAlertHistory(request);
+  await clearTestWorkers(request);
+}
+
+async function ensureMockDeviceOnline(page: import('@playwright/test').Page) {
+  const deviceStatus = page.getByTestId('device-status-label');
+  if ((await deviceStatus.textContent())?.trim() === 'Mock Offline') {
+    await page.getByRole('button', { name: 'Set Mock Online' }).click();
+    await expect(deviceStatus).toHaveText('Mock Online');
+  }
+}
+
 test.describe('Mansion rental alert flow', () => {
   test.beforeEach(async ({ request }) => {
-    await clearAlertHistory(request);
+    await clearTestData(request);
   });
 
   test.afterEach(async ({ request }) => {
-    await clearAlertHistory(request);
+    await clearTestData(request);
   });
 
   test('covers the full mansion flow', async ({ page, request }) => {
@@ -130,6 +193,104 @@ test.describe('Mansion rental alert flow', () => {
     await page.reload();
     await expect(page.getByTestId('total-alerts-count')).toHaveText('0');
     await expect(page.getByTestId('recent-alerts-empty')).toBeVisible();
+
+    await page.getByRole('link', { name: 'Workers' }).click();
+    await expect(page).toHaveURL(/\/workers$/);
+
+    await page.getByLabel('Person Name').fill(TEST_WORKERS.attendanceWorker.name);
+    await page.getByLabel('Phone').fill(TEST_WORKERS.attendanceWorker.phone);
+    await page.getByLabel('Attendance Device User ID').fill(String(TEST_WORKERS.attendanceWorker.attendanceDeviceUserId));
+    await page.getByLabel('Single Room Device User ID').fill(String(TEST_WORKERS.attendanceWorker.singleRoomDeviceUserId));
+    await page.getByLabel('Double Room Device User ID').fill(String(TEST_WORKERS.attendanceWorker.doubleRoomDeviceUserId));
+    await page.getByLabel('Monthly Room Device User ID').fill(String(TEST_WORKERS.attendanceWorker.monthlyRoomDeviceUserId));
+    await page.getByLabel('Family Room Device User ID').fill(String(TEST_WORKERS.attendanceWorker.familyRoomDeviceUserId));
+    await page.getByRole('button', { name: 'Save Person' }).click();
+    const attendanceWorkerRow = page.locator('tbody tr').filter({ hasText: TEST_WORKERS.attendanceWorker.name });
+    await expect(attendanceWorkerRow).toBeVisible();
+    await expect(attendanceWorkerRow).toContainText('Attendance + Room Rental');
+    await expect(attendanceWorkerRow).toContainText('901');
+
+    await page.getByRole('button', { name: 'Reset' }).click();
+    await page.getByLabel('Person Name').fill(TEST_WORKERS.roomOnlyWorker.name);
+    await page.getByLabel('Phone').fill(TEST_WORKERS.roomOnlyWorker.phone);
+    await page.getByLabel('Person Type').selectOption('ROOM_ONLY');
+    await page.getByLabel('Single Room Device User ID').fill(String(TEST_WORKERS.roomOnlyWorker.singleRoomDeviceUserId));
+    await page.getByLabel('Double Room Device User ID').fill(String(TEST_WORKERS.roomOnlyWorker.doubleRoomDeviceUserId));
+    await page.getByLabel('Monthly Room Device User ID').fill(String(TEST_WORKERS.roomOnlyWorker.monthlyRoomDeviceUserId));
+    await page.getByLabel('Family Room Device User ID').fill(String(TEST_WORKERS.roomOnlyWorker.familyRoomDeviceUserId));
+    await page.getByRole('button', { name: 'Save Person' }).click();
+    const roomOnlyWorkerRow = page.locator('tbody tr').filter({ hasText: TEST_WORKERS.roomOnlyWorker.name });
+    await expect(roomOnlyWorkerRow).toBeVisible();
+    await expect(roomOnlyWorkerRow).toContainText('Room Rental Only');
+    await expect(roomOnlyWorkerRow).toContainText('Not required');
+
+    await page.getByRole('link', { name: 'Dashboard' }).click();
+    await expect(page).toHaveURL(/\/dashboard$/);
+
+    await ensureMockDeviceOnline(page);
+
+    await page.getByTestId('mapped-scan-input').fill(String(TEST_WORKERS.attendanceWorker.attendanceDeviceUserId));
+    await page.getByTestId('mapped-scan-button').click();
+    await expect(page.getByText(`Attendance marked: ${TEST_WORKERS.attendanceWorker.name} IN`)).toBeVisible();
+    let attendanceRows = page.getByTestId('staff-attendance-table').locator('tbody tr').filter({
+      hasText: TEST_WORKERS.attendanceWorker.name,
+    });
+    await expect(attendanceRows.first()).toContainText('IN');
+
+    await page.getByTestId('mapped-scan-input').fill(String(TEST_WORKERS.attendanceWorker.attendanceDeviceUserId));
+    await page.getByTestId('mapped-scan-button').click();
+    await expect(page.getByText(`Attendance marked: ${TEST_WORKERS.attendanceWorker.name} OUT`)).toBeVisible();
+    attendanceRows = page.getByTestId('staff-attendance-table').locator('tbody tr').filter({
+      hasText: TEST_WORKERS.attendanceWorker.name,
+    });
+    await expect(attendanceRows.first()).toContainText('OUT');
+
+    await page.getByTestId('mapped-scan-input').fill(String(TEST_WORKERS.attendanceWorker.singleRoomDeviceUserId));
+    await page.getByTestId('mapped-scan-button').click();
+    await expect(page.getByText(`Rental alert created: Single Room by ${TEST_WORKERS.attendanceWorker.name}`)).toBeVisible();
+    await expect(page.getByTestId('total-alerts-count')).toHaveText('1');
+    const singleMappedAlertResponse = await request.get('/api/rental-alerts');
+    expect(singleMappedAlertResponse.ok()).toBeTruthy();
+    const singleMappedAlertBody: unknown = await singleMappedAlertResponse.json();
+    expect(singleMappedAlertBody).toMatchObject({ success: true });
+    expect(
+      Array.isArray((singleMappedAlertBody as { data?: unknown }).data),
+    ).toBeTruthy();
+    expect((singleMappedAlertBody as { data?: Array<{ roomType: string; deviceUserId: number; updatedBy: string }> }).data?.[0]).toMatchObject({
+      roomType: 'Single Room',
+      deviceUserId: TEST_WORKERS.attendanceWorker.singleRoomDeviceUserId,
+      updatedBy: TEST_WORKERS.attendanceWorker.name,
+    });
+
+    await page.getByTestId('mapped-scan-input').fill(String(TEST_WORKERS.roomOnlyWorker.doubleRoomDeviceUserId));
+    await page.getByTestId('mapped-scan-button').click();
+    await expect(page.getByText(`Rental alert created: Double Room by ${TEST_WORKERS.roomOnlyWorker.name}`)).toBeVisible();
+    await expect(page.getByTestId('total-alerts-count')).toHaveText('2');
+    const doubleMappedAlertResponse = await request.get('/api/rental-alerts');
+    expect(doubleMappedAlertResponse.ok()).toBeTruthy();
+    const doubleMappedAlertBody: unknown = await doubleMappedAlertResponse.json();
+    expect(doubleMappedAlertBody).toMatchObject({ success: true });
+    expect(
+      Array.isArray((doubleMappedAlertBody as { data?: unknown }).data),
+    ).toBeTruthy();
+    expect((doubleMappedAlertBody as { data?: Array<{ roomType: string; deviceUserId: number; updatedBy: string }> }).data?.[0]).toMatchObject({
+      roomType: 'Double Room',
+      deviceUserId: TEST_WORKERS.roomOnlyWorker.doubleRoomDeviceUserId,
+      updatedBy: TEST_WORKERS.roomOnlyWorker.name,
+    });
+
+    await page.getByRole('button', { name: 'Set Mock Offline' }).click();
+    await page.getByTestId('mapped-scan-input').fill(String(TEST_WORKERS.attendanceWorker.monthlyRoomDeviceUserId));
+    await page.getByTestId('mapped-scan-button').click();
+    await expect(page.getByText('Mock device is offline. Scan ignored.')).toBeVisible();
+    await expect(page.getByTestId('total-alerts-count')).toHaveText('2');
+
+    await clearAlertHistory(request);
+    await clearTestWorkers(request);
+    await page.reload();
+    await expect(page.getByTestId('total-alerts-count')).toHaveText('0');
+    await expect(page.getByTestId('recent-alerts-empty')).toBeVisible();
+    await expect(page.getByTestId('attendance-empty')).toBeVisible();
 
     await page.getByRole('button', { name: 'Logout' }).click();
     await expect(page).toHaveURL(/\/login$/);
