@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { clearSessionValue } from "@/lib/sessionStore";
 import {
@@ -31,12 +31,40 @@ type AlertStatus = "Mock Sent";
 
 type AlertSource = "Dashboard Button" | "Mock Device Scan";
 
+type DatabaseMode = "loading" | "connected" | "fallback";
+
+interface RentalAlertApiRecord {
+  id: string;
+  roomType: string;
+  actionLabel: string;
+  deviceUserId: number;
+  updatedBy: string;
+  source: string;
+  messageStatus: string;
+  alertDate: string;
+  alertTime: string;
+  createdAt: string;
+}
+
+interface RentalAlertCreateBody {
+  roomType: string;
+  actionLabel: string;
+  deviceUserId: number;
+  updatedBy: string;
+  source: string;
+  messageStatus: string;
+  alertDate: string;
+  alertTime: string;
+}
+
 interface RentalAlertRecord {
   id: string;
   roomType: RoomType;
   actionLabel: string;
   date: string;
   time: string;
+  alertDate: string;
+  alertTime: string;
   updatedBy: string;
   messageStatus: AlertStatus;
   deviceUserId: DeviceUserId;
@@ -93,6 +121,7 @@ const DEVICE_SCAN_ACTIONS: DeviceScanAction[] = [
 const DUPLICATE_WINDOW_MS = 30_000;
 const STORAGE_KEY = "mansion-rental-alert-history";
 const EMPTY_ALERTS: RentalAlertRecord[] = [];
+const TODAY_LABEL = formatDateParts(Date.now()).date;
 
 let rentalAlertStore: RentalAlertRecord[] = [];
 let rentalAlertStoreInitialized = false;
@@ -113,6 +142,97 @@ function isDeviceUserId(value: number): value is DeviceUserId {
 
 function isAlertStatus(value: string): value is AlertStatus {
   return value === "Mock Sent";
+}
+
+function isAlertSource(value: string): value is AlertSource {
+  return value === "Dashboard Button" || value === "Mock Device Scan";
+}
+
+function isRentalAlertApiRecord(value: unknown): value is RentalAlertApiRecord {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+
+  return (
+    typeof record.id === "string" &&
+    typeof record.roomType === "string" &&
+    typeof record.actionLabel === "string" &&
+    typeof record.deviceUserId === "number" &&
+    typeof record.updatedBy === "string" &&
+    typeof record.source === "string" &&
+    typeof record.messageStatus === "string" &&
+    typeof record.alertDate === "string" &&
+    typeof record.alertTime === "string" &&
+    typeof record.createdAt === "string"
+  );
+}
+
+function mapApiAlertToRecord(apiAlert: RentalAlertApiRecord): RentalAlertRecord {
+  const createdAtMs = new Date(apiAlert.createdAt).getTime();
+  const safeSource = isAlertSource(apiAlert.source)
+    ? apiAlert.source
+    : "Dashboard Button";
+  const safeMessageStatus = isAlertStatus(apiAlert.messageStatus)
+    ? apiAlert.messageStatus
+    : "Mock Sent";
+  const roomType = isRoomType(apiAlert.roomType)
+    ? apiAlert.roomType
+    : "Single Room";
+  const deviceUserId = isDeviceUserId(apiAlert.deviceUserId)
+    ? apiAlert.deviceUserId
+    : 101;
+
+  return {
+    id: apiAlert.id,
+    roomType,
+    actionLabel: apiAlert.actionLabel,
+    date: apiAlert.alertDate,
+    time: apiAlert.alertTime,
+    alertDate: apiAlert.alertDate,
+    alertTime: apiAlert.alertTime,
+    updatedBy: apiAlert.updatedBy,
+    messageStatus: safeMessageStatus,
+    deviceUserId,
+    source: safeSource,
+    createdAtMs: Number.isFinite(createdAtMs) ? createdAtMs : Date.now(),
+  };
+}
+
+function toRentalAlertCreateBody(
+  alert: RentalAlertRecord,
+): RentalAlertCreateBody {
+  return {
+    roomType: alert.roomType,
+    actionLabel: alert.actionLabel,
+    deviceUserId: alert.deviceUserId,
+    updatedBy: alert.updatedBy,
+    source: alert.source,
+    messageStatus: alert.messageStatus,
+    alertDate: alert.alertDate,
+    alertTime: alert.alertTime,
+  };
+}
+
+function parseRentalAlertApiResponse(body: unknown): RentalAlertRecord[] {
+  if (typeof body !== "object" || body === null) {
+    return [];
+  }
+
+  const record = body as { success?: unknown; data?: unknown };
+
+  if (!record.success || !Array.isArray(record.data)) {
+    return [];
+  }
+
+  return record.data.flatMap((item) => {
+    if (!isRentalAlertApiRecord(item)) {
+      return [];
+    }
+
+    return [mapApiAlertToRecord(item)];
+  });
 }
 
 function parseStoredAlerts(rawValue: string | null): RentalAlertRecord[] {
@@ -169,6 +289,8 @@ function parseStoredAlerts(rawValue: string | null): RentalAlertRecord[] {
           actionLabel,
           date,
           time,
+          alertDate: typeof record.alertDate === "string" ? record.alertDate : date,
+          alertTime: typeof record.alertTime === "string" ? record.alertTime : time,
           updatedBy,
           messageStatus,
           deviceUserId,
@@ -242,10 +364,17 @@ function notifyRentalAlertStoreListeners(): void {
   }
 }
 
-function replaceRentalAlertStore(alerts: RentalAlertRecord[]): void {
+function replaceRentalAlertStore(
+  alerts: RentalAlertRecord[],
+  options: { persist?: boolean } = {},
+): void {
   rentalAlertStore = alerts;
   rentalAlertStoreInitialized = true;
-  persistAlerts(alerts);
+  if (options.persist) {
+    persistAlerts(alerts);
+  } else {
+    removeStoredAlerts();
+  }
   notifyRentalAlertStoreListeners();
 }
 
@@ -287,6 +416,8 @@ function createAlertRecord(
     actionLabel: action.actionLabel,
     date: parts.date,
     time: parts.time,
+    alertDate: parts.date,
+    alertTime: parts.time,
     updatedBy: caretakerName,
     messageStatus: "Mock Sent",
     deviceUserId: action.deviceUserId,
@@ -351,6 +482,9 @@ Source: ${alert.source}`;
 }
 
 export default function RentalDashboard() {
+  const [isLoadingAlerts, setIsLoadingAlerts] = useState(true);
+  const [databaseMode, setDatabaseMode] = useState<DatabaseMode>("loading");
+  const [databaseNotice, setDatabaseNotice] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const alerts = useSyncExternalStore(
     subscribeToRentalAlertStore,
@@ -384,12 +518,67 @@ export default function RentalDashboard() {
   const deviceStatusLabel =
     deviceState.status === "online" ? "Mock Online" : "Mock Offline";
   const lastSyncLabel = formatDeviceSyncTime(deviceState.lastSyncAt);
+  const todayLabel = TODAY_LABEL;
+  const databaseModeLabel =
+    databaseMode === "loading"
+      ? "Loading"
+      : databaseMode === "connected"
+        ? "Connected"
+        : "Fallback";
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRentalAlerts() {
+      try {
+        const response = await fetch("/api/rental-alerts", {
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          throw new Error(`GET /api/rental-alerts failed (${response.status})`);
+        }
+
+        const body: unknown = await response.json();
+        const loadedAlerts = parseRentalAlertApiResponse(body);
+
+        if (cancelled) {
+          return;
+        }
+
+        replaceRentalAlertStore(loadedAlerts);
+        setDatabaseMode("connected");
+        setDatabaseNotice(null);
+      } catch {
+        const fallbackAlerts = readStoredAlerts();
+
+        if (cancelled) {
+          return;
+        }
+
+        replaceRentalAlertStore(fallbackAlerts);
+        setDatabaseMode("fallback");
+        setDatabaseNotice("Database unavailable. Showing local fallback history.");
+      } finally {
+        if (!cancelled) {
+          setIsLoadingAlerts(false);
+        }
+      }
+    }
+
+    void loadRentalAlerts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const counts = useMemo(() => {
     return ROOM_ACTIONS.reduce(
       (summary, action) => {
         summary[action.roomType] = alerts.filter(
-          (alert) => alert.roomType === action.roomType,
+          (alert) =>
+            alert.roomType === action.roomType && alert.alertDate === todayLabel,
         ).length;
         summary.total += summary[action.roomType];
         return summary;
@@ -402,7 +591,57 @@ export default function RentalDashboard() {
         total: 0,
       } as Record<RoomType | "total", number>,
     );
-  }, [alerts]);
+  }, [alerts, todayLabel]);
+
+  const saveAlertToDatabase = async (alert: RentalAlertRecord) => {
+    const nextAlerts = [alert, ...alerts];
+
+    try {
+      const response = await fetch("/api/rental-alerts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(toRentalAlertCreateBody(alert)),
+      });
+
+      const body: unknown = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          typeof body === "object" && body !== null && "error" in body
+            ? String((body as { error?: unknown }).error ?? "")
+            : `POST /api/rental-alerts failed (${response.status})`,
+        );
+      }
+
+      if (
+        typeof body !== "object" ||
+        body === null ||
+        !("success" in body) ||
+        !("data" in body) ||
+        !body.success ||
+        !isRentalAlertApiRecord((body as { data?: unknown }).data)
+      ) {
+        throw new Error("Invalid alert response from API.");
+      }
+
+      const savedAlert = mapApiAlertToRecord(
+        (body as { data: RentalAlertApiRecord }).data,
+      );
+
+      replaceRentalAlertStore([savedAlert, ...alerts]);
+      setDatabaseMode("connected");
+      setDatabaseNotice(null);
+      setWarning(null);
+      return;
+    } catch {
+      replaceRentalAlertStore(nextAlerts, { persist: true });
+      setDatabaseMode("fallback");
+      setDatabaseNotice("Database unavailable. Showing local fallback history.");
+      setWarning("Database save failed. Alert saved locally as fallback.");
+    }
+  };
 
   const handleRoomAction = (action: RoomAction) => {
     const result = getNextRoomActionResult(
@@ -419,8 +658,7 @@ export default function RentalDashboard() {
     }
 
     if (nextRecord) {
-      replaceRentalAlertStore([nextRecord, ...alerts]);
-      setWarning(null);
+      void saveAlertToDatabase(nextRecord);
     }
   };
 
@@ -453,8 +691,7 @@ export default function RentalDashboard() {
     }
 
     if (result.record) {
-      replaceRentalAlertStore([result.record, ...alerts]);
-      setWarning(null);
+      void saveAlertToDatabase(result.record);
     }
   };
 
@@ -503,6 +740,16 @@ export default function RentalDashboard() {
     router.replace("/login");
   };
 
+  if (isLoadingAlerts) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-4 text-slate-100">
+        <div className="rounded-3xl border border-white/10 bg-white/5 px-6 py-8 text-sm text-slate-300 shadow-2xl shadow-slate-950/30">
+          Loading alert history...
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.15),_transparent_35%),linear-gradient(180deg,_#0f172a_0%,_#020617_100%)] px-4 py-6 text-slate-100 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -530,6 +777,9 @@ export default function RentalDashboard() {
               <p className="font-medium text-white">Current Mode</p>
               <p className="mt-1">Client-side dashboard only</p>
               <p>No database, no real messaging, no biometric device.</p>
+              <div className="mt-3 inline-flex rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-xs font-medium text-cyan-100">
+                Database Mode: {databaseModeLabel}
+              </div>
               <p className="mt-3 text-xs text-slate-400">{ownerWhatsAppLabel}</p>
               <nav className="mt-4 flex flex-wrap gap-2">
                 <Link
@@ -558,6 +808,11 @@ export default function RentalDashboard() {
           {warning ? (
             <div className="mt-6 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
               {warning}
+            </div>
+          ) : null}
+          {databaseNotice ? (
+            <div className="mt-3 rounded-2xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-100">
+              {databaseNotice}
             </div>
           ) : null}
         </section>
@@ -715,17 +970,21 @@ export default function RentalDashboard() {
                   onClick={clearHistory}
                   className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
                 >
-                  Clear Mock History
+                  Clear Local View
                 </button>
                 <button
                   type="button"
                   onClick={exportHistory}
                   className="rounded-full bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
                 >
-                  Export Mock History JSON
+                  Export Alert History JSON
                 </button>
               </div>
             </div>
+
+            <p className="mt-3 text-xs text-slate-400">
+              Database records are not deleted in this version.
+            </p>
 
             <div className="mt-6 overflow-x-auto">
               <table className="min-w-full divide-y divide-white/10 text-left text-sm">
