@@ -7,16 +7,15 @@ import { clearSessionValue } from "@/lib/sessionStore";
 import {
   DEFAULT_SETTINGS,
   formatOwnerWhatsAppNumber,
-  getSettingsServerSnapshot,
   getSettingsSnapshot,
-  subscribeToSettingsStore,
+  type MansionSettings,
 } from "@/lib/settingsStore";
 import {
+  DEFAULT_DEVICE_STATE,
   formatDeviceSyncTime,
-  getDeviceStateServerSnapshot,
   getDeviceStateSnapshot,
-  setDeviceState,
-  subscribeToDeviceState,
+  setDeviceState as persistFallbackDeviceState,
+  type MockDeviceState,
 } from "@/lib/deviceStore";
 
 type RoomType =
@@ -474,25 +473,82 @@ Updated by: ${alert.updatedBy}
 Source: ${alert.source}`;
 }
 
+function sanitizeSettingsRecord(record: Record<string, unknown>): MansionSettings {
+  return {
+    mansionName:
+      typeof record.mansionName === "string" && record.mansionName.trim().length > 0
+        ? record.mansionName
+        : DEFAULT_SETTINGS.mansionName,
+    ownerName:
+      typeof record.ownerName === "string" && record.ownerName.trim().length > 0
+        ? record.ownerName
+        : DEFAULT_SETTINGS.ownerName,
+    ownerWhatsAppNumber:
+      typeof record.ownerWhatsAppNumber === "string"
+        ? record.ownerWhatsAppNumber
+        : DEFAULT_SETTINGS.ownerWhatsAppNumber,
+    caretakerName:
+      typeof record.caretakerName === "string" && record.caretakerName.trim().length > 0
+        ? record.caretakerName
+        : DEFAULT_SETTINGS.caretakerName,
+  };
+}
+
+function parseSettingsApiResponse(body: unknown): MansionSettings | null {
+  if (typeof body !== "object" || body === null) {
+    return null;
+  }
+
+  const record = body as { success?: unknown; data?: unknown };
+
+  if (!record.success || typeof record.data !== "object" || record.data === null) {
+    return null;
+  }
+
+  return sanitizeSettingsRecord(record.data as Record<string, unknown>);
+}
+
+function sanitizeDeviceStateRecord(record: Record<string, unknown>): MockDeviceState {
+  const status = record.status;
+  const lastSyncAt = record.lastSyncAt;
+
+  return {
+    status: status === "online" || status === "offline" ? status : DEFAULT_DEVICE_STATE.status,
+    lastSyncAt: typeof lastSyncAt === "string" ? lastSyncAt : null,
+  };
+}
+
+function parseDeviceStateApiResponse(body: unknown): MockDeviceState | null {
+  if (typeof body !== "object" || body === null) {
+    return null;
+  }
+
+  const record = body as { success?: unknown; data?: unknown };
+
+  if (!record.success || typeof record.data !== "object" || record.data === null) {
+    return null;
+  }
+
+  return sanitizeDeviceStateRecord(record.data as Record<string, unknown>);
+}
+
 export default function RentalDashboard() {
   const [isLoadingAlerts, setIsLoadingAlerts] = useState(true);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
+  const [isLoadingDeviceState, setIsLoadingDeviceState] = useState(true);
   const [databaseMode, setDatabaseMode] = useState<DatabaseMode>("loading");
   const [databaseNotice, setDatabaseNotice] = useState<string | null>(null);
+  const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
+  const [deviceNotice, setDeviceNotice] = useState<string | null>(null);
+  const [settings, setSettings] = useState<MansionSettings>(DEFAULT_SETTINGS);
+  const [deviceState, setDeviceStateState] = useState<MockDeviceState>(
+    DEFAULT_DEVICE_STATE,
+  );
   const [warning, setWarning] = useState<string | null>(null);
   const alerts = useSyncExternalStore(
     subscribeToRentalAlertStore,
     getRentalAlertSnapshot,
     getRentalAlertServerSnapshot,
-  );
-  const settings = useSyncExternalStore(
-    subscribeToSettingsStore,
-    getSettingsSnapshot,
-    getSettingsServerSnapshot,
-  );
-  const deviceState = useSyncExternalStore(
-    subscribeToDeviceState,
-    getDeviceStateSnapshot,
-    getDeviceStateServerSnapshot,
   );
   const router = useRouter();
 
@@ -518,6 +574,9 @@ export default function RentalDashboard() {
       : databaseMode === "connected"
         ? "Connected"
         : "Fallback";
+
+  const isLoadingPage =
+    isLoadingAlerts || isLoadingSettings || isLoadingDeviceState;
 
   const reloadRentalAlerts = useCallback(async (): Promise<RentalAlertRecord[]> => {
     const response = await fetch("/api/rental-alerts", {
@@ -570,6 +629,104 @@ export default function RentalDashboard() {
     };
   }, [reloadRentalAlerts]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSettings() {
+      try {
+        const response = await fetch("/api/settings", {
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          throw new Error(`GET /api/settings failed (${response.status})`);
+        }
+
+        const body: unknown = await response.json();
+        const loadedSettings = parseSettingsApiResponse(body);
+
+        if (!loadedSettings) {
+          throw new Error("Invalid settings response from API.");
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        setSettings(loadedSettings);
+        setSettingsNotice(null);
+      } catch {
+        const fallbackSettings = getSettingsSnapshot();
+
+        if (cancelled) {
+          return;
+        }
+
+        setSettings(fallbackSettings);
+        setSettingsNotice("Database unavailable. Settings fallback is active.");
+      } finally {
+        if (!cancelled) {
+          setIsLoadingSettings(false);
+        }
+      }
+    }
+
+    void loadSettings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadDeviceState() {
+      try {
+        const response = await fetch("/api/device-state", {
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          throw new Error(`GET /api/device-state failed (${response.status})`);
+        }
+
+        const body: unknown = await response.json();
+        const loadedDeviceState = parseDeviceStateApiResponse(body);
+
+        if (!loadedDeviceState) {
+          throw new Error("Invalid device state response from API.");
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        setDeviceStateState(loadedDeviceState);
+        setDeviceNotice(null);
+      } catch {
+        const fallbackDeviceState = getDeviceStateSnapshot();
+
+        if (cancelled) {
+          return;
+        }
+
+        setDeviceStateState(fallbackDeviceState);
+        setDeviceNotice("Database unavailable. Device state fallback is active.");
+      } finally {
+        if (!cancelled) {
+          setIsLoadingDeviceState(false);
+        }
+      }
+    }
+
+    void loadDeviceState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const counts = useMemo(() => {
     return ROOM_ACTIONS.reduce(
       (summary, action) => {
@@ -589,6 +746,42 @@ export default function RentalDashboard() {
       } as Record<RoomType | "total", number>,
     );
   }, [alerts, todayLabel]);
+
+  const saveDeviceStateToDatabase = async (nextState: MockDeviceState) => {
+    try {
+      const response = await fetch("/api/device-state", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(nextState),
+      });
+
+      const body: unknown = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          typeof body === "object" && body !== null && "error" in body
+            ? String((body as { error?: unknown }).error ?? "")
+            : `PUT /api/device-state failed (${response.status})`,
+        );
+      }
+
+      const savedDeviceState = parseDeviceStateApiResponse(body);
+
+      if (!savedDeviceState) {
+        throw new Error("Invalid device state response from API.");
+      }
+
+      setDeviceStateState(savedDeviceState);
+      setDeviceNotice(null);
+      return;
+    } catch {
+      persistFallbackDeviceState(nextState);
+      setDeviceStateState(nextState);
+      setDeviceNotice("Database unavailable. Device state fallback is active.");
+    }
+  };
 
   const saveAlertToDatabase = async (alert: RentalAlertRecord) => {
     const nextAlerts = [alert, ...alerts];
@@ -701,9 +894,7 @@ export default function RentalDashboard() {
   };
 
   const handleDeviceScan = (deviceUserId: DeviceUserId) => {
-    const currentDeviceState = getDeviceStateSnapshot();
-
-    if (currentDeviceState.status === "offline") {
+    if (deviceState.status === "offline") {
       setWarning("Mock device is offline. Scan ignored.");
       return;
     }
@@ -734,14 +925,14 @@ export default function RentalDashboard() {
   };
 
   const handleDeviceToggle = () => {
-    setDeviceState({
+    void saveDeviceStateToDatabase({
       ...deviceState,
       status: deviceState.status === "online" ? "offline" : "online",
     });
   };
 
   const handleManualSync = () => {
-    setDeviceState({
+    void saveDeviceStateToDatabase({
       ...deviceState,
       lastSyncAt: new Date().toISOString(),
     });
@@ -768,11 +959,11 @@ export default function RentalDashboard() {
     router.replace("/login");
   };
 
-  if (isLoadingAlerts) {
+  if (isLoadingPage) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-950 px-4 text-slate-100">
         <div className="rounded-3xl border border-white/10 bg-white/5 px-6 py-8 text-sm text-slate-300 shadow-2xl shadow-slate-950/30">
-          Loading alert history...
+          Loading dashboard data...
         </div>
       </main>
     );
@@ -841,6 +1032,16 @@ export default function RentalDashboard() {
           {databaseNotice ? (
             <div className="mt-3 rounded-2xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-100">
               {databaseNotice}
+            </div>
+          ) : null}
+          {settingsNotice ? (
+            <div className="mt-3 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+              {settingsNotice}
+            </div>
+          ) : null}
+          {deviceNotice ? (
+            <div className="mt-3 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+              {deviceNotice}
             </div>
           ) : null}
         </section>
