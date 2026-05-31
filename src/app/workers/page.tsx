@@ -292,8 +292,8 @@ export default function WorkersPage() {
 
   if (!isLoggedInSession(session) || isLoading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-4 text-slate-100">
-        <div className="rounded-3xl border border-white/10 bg-white/5 px-6 py-8 text-sm text-slate-300 shadow-2xl shadow-slate-950/30">
+      <main className="flex min-h-screen items-center justify-center bg-[#F8FAFC] px-4 text-[#64748B]">
+        <div className="rounded-3xl border border-[#D4AF37]/35 bg-[#FFFFFF] px-6 py-8 text-sm text-[#64748B] shadow-sm">
           Loading workers...
         </div>
       </main>
@@ -301,37 +301,38 @@ export default function WorkersPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.15),_transparent_35%),linear-gradient(180deg,_#0f172a_0%,_#020617_100%)] px-4 py-6 text-slate-100 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-[#F8FAFC] px-4 py-6 text-[#64748B] sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
-        <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-slate-950/30 backdrop-blur xl:p-8">
+        <section className="rounded-3xl border border-[#D4AF37]/35 bg-gradient-to-r from-[#07162A] to-[#0B1F3A] p-6 shadow-xl xl:p-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-xs font-medium text-cyan-100">
+              <div className="inline-flex items-center gap-2 rounded-full border border-[#D4AF37]/65 bg-[#FFFFFF]/10 px-3 py-1 text-xs font-medium text-[#FFFFFF]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#D4AF37]" />
                 Map biometric Device User IDs to workers and actions.
               </div>
-              <h1 className="mt-4 text-3xl font-semibold tracking-tight text-white">
+              <h1 className="mt-4 text-3xl font-semibold tracking-tight text-[#FFFFFF]">
                 Worker & Finger Mapping
               </h1>
-              <p className="mt-2 text-sm text-slate-300">
+              <p className="mt-2 text-sm text-[#F5E6A8]">
                 Map each person’s biometric Device User IDs to attendance and room rental actions.
               </p>
             </div>
             <nav className="flex flex-wrap gap-3">
               <Link
                 href="/dashboard"
-                className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+                className="rounded-full border border-[#FFFFFF]/40 bg-[#FFFFFF]/10 px-4 py-2 text-sm font-medium text-[#FFFFFF] transition hover:bg-[#FFFFFF]/20"
               >
                 Dashboard
               </Link>
               <Link
                 href="/settings"
-                className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+                className="rounded-full border border-[#FFFFFF]/40 bg-[#FFFFFF]/10 px-4 py-2 text-sm font-medium text-[#FFFFFF] transition hover:bg-[#FFFFFF]/20"
               >
                 Settings
               </Link>
               <Link
                 href="/workers"
-                className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-sm font-medium text-cyan-100"
+                className="rounded-full border border-[#D4AF37] bg-[#0B1F3A] px-4 py-2 text-sm font-semibold text-[#FFFFFF]"
               >
                 Workers
               </Link>
@@ -341,7 +342,7 @@ export default function WorkersPage() {
                   clearSessionValue();
                   router.replace("/login");
                 }}
-                className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+                className="rounded-full border border-[#FFFFFF]/40 bg-[#FFFFFF]/10 px-4 py-2 text-sm font-medium text-[#FFFFFF] transition hover:bg-[#FFFFFF]/20"
               >
                 Logout
               </button>
@@ -349,47 +350,47 @@ export default function WorkersPage() {
           </div>
 
           {message ? (
-            <div className="mt-6 rounded-2xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
+            <div className="mt-6 rounded-2xl border border-[#D4AF37]/60 bg-[#FFFFFF]/10 px-4 py-3 text-sm text-[#FFFFFF]">
               {message}
             </div>
           ) : null}
           {error ? (
-            <div className="mt-3 rounded-2xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
+            <div className="mt-3 rounded-2xl border border-[#D4AF37]/60 bg-[#FFFFFF]/10 px-4 py-3 text-sm text-[#FFFFFF]">
               {error}
             </div>
           ) : null}
-          <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-slate-300">
-            <p className="font-medium text-white">Example mappings</p>
+          <div className="mt-4 rounded-2xl border border-[#D4AF37]/40 bg-[#FFFFFF]/10 px-4 py-3 text-sm text-[#FFFFFF]">
+            <p className="font-medium text-[#FFFFFF]">Example mappings</p>
             <p className="mt-1">Attendance + Room Rental: Ravi (201–205), Kumar (211–215), Mani (221–225)</p>
             <p>Room Rental Only: Manager (301–304)</p>
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1 text-xs text-[#F5E6A8]">
               Total active workers: {activeWorkerCount} / {workers.length}
             </p>
           </div>
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-lg shadow-slate-950/20">
+        <section className="rounded-3xl border border-[#D4AF37]/35 bg-[#FFFFFF] p-6 shadow-sm">
           <form onSubmit={handleSubmit} className="grid gap-4 xl:grid-cols-2">
-            <label className="grid gap-2 text-sm text-slate-200">
+            <label className="grid gap-2 text-sm text-[#0B1F3A]">
               <span>Person Name</span>
               <input
                 value={form.name}
                 onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-                className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-300/30"
+                className="rounded-2xl border border-[#D4AF37]/35 bg-[#FFFFFF] px-4 py-3 text-[#0B1F3A] outline-none transition focus:border-[#0B1F3A] focus:ring-2 focus:ring-[#0B1F3A]/20"
               />
             </label>
 
-            <label className="grid gap-2 text-sm text-slate-200">
+            <label className="grid gap-2 text-sm text-[#0B1F3A]">
               <span>Phone</span>
               <input
                 value={form.phone}
                 onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))}
-                className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-300/30"
+                className="rounded-2xl border border-[#D4AF37]/35 bg-[#FFFFFF] px-4 py-3 text-[#0B1F3A] outline-none transition focus:border-[#0B1F3A] focus:ring-2 focus:ring-[#0B1F3A]/20"
                 placeholder="Optional"
               />
             </label>
 
-            <label className="grid gap-2 text-sm text-slate-200 xl:col-span-2">
+            <label className="grid gap-2 text-sm text-[#0B1F3A] xl:col-span-2">
               <span>Person Type</span>
               <select
                 value={form.personType}
@@ -402,7 +403,7 @@ export default function WorkersPage() {
                       nextType === "ROOM_ONLY" ? "" : current.attendanceDeviceUserId,
                   }));
                 }}
-                className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-300/30"
+                className="rounded-2xl border border-[#D4AF37]/35 bg-[#FFFFFF] px-4 py-3 text-[#0B1F3A] outline-none transition focus:border-[#0B1F3A] focus:ring-2 focus:ring-[#0B1F3A]/20"
               >
                 <option value="ATTENDANCE_AND_ROOM">Attendance + Room Rental</option>
                 <option value="ROOM_ONLY">Room Rental Only</option>
@@ -410,73 +411,73 @@ export default function WorkersPage() {
             </label>
 
             {form.personType === "ATTENDANCE_AND_ROOM" ? (
-              <label className="grid gap-2 text-sm text-slate-200 xl:col-span-2">
+              <label className="grid gap-2 text-sm text-[#0B1F3A] xl:col-span-2">
                 <span>Attendance Device User ID</span>
                 <input
                   value={form.attendanceDeviceUserId}
                   onChange={(event) =>
                     setForm((current) => ({ ...current, attendanceDeviceUserId: event.target.value }))
                   }
-                  className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-300/30"
+                  className="rounded-2xl border border-[#D4AF37]/35 bg-[#FFFFFF] px-4 py-3 text-[#0B1F3A] outline-none transition focus:border-[#0B1F3A] focus:ring-2 focus:ring-[#0B1F3A]/20"
                 />
               </label>
             ) : null}
 
-            <label className="grid gap-2 text-sm text-slate-200">
+            <label className="grid gap-2 text-sm text-[#0B1F3A]">
               <span>Single Room Device User ID</span>
               <input
                 value={form.singleRoomDeviceUserId}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, singleRoomDeviceUserId: event.target.value }))
                 }
-                className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-300/30"
+                className="rounded-2xl border border-[#D4AF37]/35 bg-[#FFFFFF] px-4 py-3 text-[#0B1F3A] outline-none transition focus:border-[#0B1F3A] focus:ring-2 focus:ring-[#0B1F3A]/20"
               />
             </label>
 
-            <label className="grid gap-2 text-sm text-slate-200">
+            <label className="grid gap-2 text-sm text-[#0B1F3A]">
               <span>Double Room Device User ID</span>
               <input
                 value={form.doubleRoomDeviceUserId}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, doubleRoomDeviceUserId: event.target.value }))
                 }
-                className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-300/30"
+                className="rounded-2xl border border-[#D4AF37]/35 bg-[#FFFFFF] px-4 py-3 text-[#0B1F3A] outline-none transition focus:border-[#0B1F3A] focus:ring-2 focus:ring-[#0B1F3A]/20"
               />
             </label>
 
-            <label className="grid gap-2 text-sm text-slate-200">
+            <label className="grid gap-2 text-sm text-[#0B1F3A]">
               <span>Monthly Room Device User ID</span>
               <input
                 value={form.monthlyRoomDeviceUserId}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, monthlyRoomDeviceUserId: event.target.value }))
                 }
-                className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-300/30"
+                className="rounded-2xl border border-[#D4AF37]/35 bg-[#FFFFFF] px-4 py-3 text-[#0B1F3A] outline-none transition focus:border-[#0B1F3A] focus:ring-2 focus:ring-[#0B1F3A]/20"
               />
             </label>
 
-            <label className="grid gap-2 text-sm text-slate-200">
+            <label className="grid gap-2 text-sm text-[#0B1F3A]">
               <span>Family Room Device User ID</span>
               <input
                 value={form.familyRoomDeviceUserId}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, familyRoomDeviceUserId: event.target.value }))
                 }
-                className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-300/30"
+                className="rounded-2xl border border-[#D4AF37]/35 bg-[#FFFFFF] px-4 py-3 text-[#0B1F3A] outline-none transition focus:border-[#0B1F3A] focus:ring-2 focus:ring-[#0B1F3A]/20"
               />
             </label>
 
             <div className="flex flex-wrap gap-3 pt-2 xl:col-span-2">
               <button
                 type="submit"
-                className="rounded-full bg-cyan-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
+                className="rounded-full border border-[#0B1F3A] bg-[#0B1F3A] px-5 py-3 text-sm font-semibold text-[#FFFFFF] transition hover:border-[#D4AF37] hover:bg-[#07162A]"
               >
                 Save Person
               </button>
               <button
                 type="button"
                 onClick={resetForm}
-                className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/10"
+                className="rounded-full border border-[#D4AF37]/55 bg-[#FFFFFF] px-5 py-3 text-sm font-medium text-[#0B1F3A] transition hover:bg-[#F5E6A8]/35"
               >
                 Reset
               </button>
@@ -484,19 +485,19 @@ export default function WorkersPage() {
           </form>
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-lg shadow-slate-950/20">
+        <section className="rounded-3xl border border-[#D4AF37]/35 bg-[#FFFFFF] p-6 shadow-sm">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-2xl font-semibold text-white">Workers</h2>
-              <p className="mt-1 text-sm text-slate-400">
+              <h2 className="text-2xl font-semibold text-[#0B1F3A]">Workers</h2>
+              <p className="mt-1 text-sm text-[#64748B]">
                 View and manage worker fingerprints and attendance roles.
               </p>
             </div>
           </div>
 
           <div className="mt-6 overflow-x-auto">
-            <table className="min-w-full divide-y divide-white/10 text-left text-sm">
-              <thead className="text-slate-400">
+            <table className="min-w-full divide-y divide-[#E2E8F0] text-left text-sm">
+              <thead className="text-[#64748B]">
                 <tr>
                   <th className="pb-3 pr-4 font-medium">Person Name</th>
                   <th className="pb-3 pr-4 font-medium">Phone</th>
@@ -510,7 +511,7 @@ export default function WorkersPage() {
                   <th className="pb-3 font-medium">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5 text-slate-200">
+              <tbody className="divide-y divide-[#F1F5F9] text-[#0B1F3A]">
                 {workers.length > 0 ? (
                   workers.map((worker) => {
                     const attendanceMapping = worker.fingerMappings.find(
@@ -531,7 +532,7 @@ export default function WorkersPage() {
 
                     return (
                       <tr key={worker.id} className="align-top">
-                        <td className="py-4 pr-4 font-medium text-white">{worker.name}</td>
+                        <td className="py-4 pr-4 font-medium text-[#0B1F3A]">{worker.name}</td>
                         <td className="py-4 pr-4">{worker.phone ?? "-"}</td>
                         <td className="py-4 pr-4">{formatWorkerPersonType(worker.personType)}</td>
                         <td className="py-4 pr-4">
@@ -544,7 +545,7 @@ export default function WorkersPage() {
                         <td className="py-4 pr-4">{monthlyMapping?.deviceUserId ?? "-"}</td>
                         <td className="py-4 pr-4">{familyMapping?.deviceUserId ?? "-"}</td>
                         <td className="py-4 pr-4">
-                          <span className={worker.isActive ? "text-emerald-300" : "text-amber-300"}>
+                          <span className={worker.isActive ? "text-[#0B1F3A]" : "text-[#64748B]"}>
                             {worker.isActive ? "Active" : "Inactive"}
                           </span>
                         </td>
@@ -553,21 +554,21 @@ export default function WorkersPage() {
                             <button
                               type="button"
                               onClick={() => handleEdit(worker)}
-                              className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-white/10"
+                              className="rounded-full border border-[#D4AF37]/45 bg-[#FFFFFF] px-3 py-1.5 text-xs font-medium text-[#0B1F3A] transition hover:bg-[#F5E6A8]/35"
                             >
                               Edit
                             </button>
                             <button
                               type="button"
                               onClick={() => handleToggleActive(worker)}
-                              className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-white/10"
+                              className="rounded-full border border-[#D4AF37]/45 bg-[#FFFFFF] px-3 py-1.5 text-xs font-medium text-[#0B1F3A] transition hover:bg-[#F5E6A8]/35"
                             >
                               {worker.isActive ? "Inactive" : "Active"}
                             </button>
                             <button
                               type="button"
                               onClick={() => handleDelete(worker.id)}
-                              className="rounded-full border border-rose-300/20 bg-rose-400/10 px-3 py-1.5 text-xs font-medium text-rose-100 transition hover:bg-rose-400/20"
+                              className="rounded-full border border-[#D4AF37]/45 bg-[#FFFFFF] px-3 py-1.5 text-xs font-medium text-[#0B1F3A] transition hover:bg-[#F5E6A8]/35"
                             >
                               Delete
                             </button>
@@ -578,7 +579,7 @@ export default function WorkersPage() {
                   })
                 ) : (
                   <tr>
-                    <td className="py-6 text-slate-400" colSpan={10}>
+                    <td className="py-6 text-[#64748B]" colSpan={10}>
                       No workers saved yet.
                     </td>
                   </tr>
