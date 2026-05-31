@@ -4,6 +4,10 @@ import {
   actionTypeToRoomType,
   isRoomActionType,
 } from "@/lib/workers";
+import {
+  createMockRentalAlertMessageLog,
+  createMockStaffAttendanceMessageLog,
+} from "@/lib/messageService";
 
 interface MockFingerprintScanPayload {
   deviceUserId?: unknown;
@@ -88,6 +92,11 @@ export async function POST(request: Request) {
         ? payload.source
         : "Mock Device Scan";
 
+    const settings = await prisma.appSettings.findFirst({
+      orderBy: { createdAt: "asc" },
+    });
+    const ownerWhatsAppNumber = settings?.ownerWhatsAppNumber?.trim() ?? "";
+
     if (mapping.actionType === "ATTENDANCE") {
       if (mapping.worker.personType !== "ATTENDANCE_AND_ROOM") {
         return NextResponse.json(
@@ -109,6 +118,32 @@ export async function POST(request: Request) {
           source,
         },
       });
+
+      try {
+        if (ownerWhatsAppNumber.length > 0) {
+          await createMockStaffAttendanceMessageLog({
+            recipient: ownerWhatsAppNumber,
+            workerName: mapping.worker.name,
+            status: attendance.status,
+            attendanceDate: attendance.attendanceDate,
+            attendanceTime: attendance.attendanceTime,
+            relatedAttendanceId: attendance.id,
+          });
+        } else {
+          await createMockStaffAttendanceMessageLog({
+            recipient: "Not configured",
+            workerName: mapping.worker.name,
+            status: attendance.status,
+            attendanceDate: attendance.attendanceDate,
+            attendanceTime: attendance.attendanceTime,
+            relatedAttendanceId: attendance.id,
+            messageStatus: "FAILED",
+            errorMessage: "Owner WhatsApp number not configured.",
+          });
+        }
+      } catch {
+        // Message logging must never block attendance creation.
+      }
 
       return NextResponse.json({
         success: true,
@@ -146,6 +181,32 @@ export async function POST(request: Request) {
         alertTime: parts.time,
       },
     });
+
+    try {
+      if (ownerWhatsAppNumber.length > 0) {
+        await createMockRentalAlertMessageLog({
+          recipient: ownerWhatsAppNumber,
+          roomType: rentalAlert.roomType,
+          alertDate: rentalAlert.alertDate,
+          alertTime: rentalAlert.alertTime,
+          updatedBy: mapping.worker.name,
+          relatedRentalAlertId: rentalAlert.id,
+        });
+      } else {
+        await createMockRentalAlertMessageLog({
+          recipient: "Not configured",
+          roomType: rentalAlert.roomType,
+          alertDate: rentalAlert.alertDate,
+          alertTime: rentalAlert.alertTime,
+          updatedBy: mapping.worker.name,
+          relatedRentalAlertId: rentalAlert.id,
+          status: "FAILED",
+          errorMessage: "Owner WhatsApp number not configured.",
+        });
+      }
+    } catch {
+      // Message logging must never block rental creation.
+    }
 
     return NextResponse.json({
       success: true,

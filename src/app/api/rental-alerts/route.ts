@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import {
+  createMockRentalAlertMessageLog,
+} from "@/lib/messageService";
 
 interface RentalAlertPayload {
   roomType?: unknown;
@@ -107,6 +110,37 @@ export async function POST(request: Request) {
     const alert = await prisma.rentalAlert.create({
       data: parsed.data,
     });
+
+    try {
+      const settings = await prisma.appSettings.findFirst({
+        orderBy: { createdAt: "asc" },
+      });
+      const ownerWhatsAppNumber = settings?.ownerWhatsAppNumber?.trim() ?? "";
+
+      if (ownerWhatsAppNumber.length > 0) {
+        await createMockRentalAlertMessageLog({
+          recipient: ownerWhatsAppNumber,
+          roomType: alert.roomType,
+          alertDate: alert.alertDate,
+          alertTime: alert.alertTime,
+          updatedBy: alert.updatedBy,
+          relatedRentalAlertId: alert.id,
+        });
+      } else {
+        await createMockRentalAlertMessageLog({
+          recipient: "Not configured",
+          roomType: alert.roomType,
+          alertDate: alert.alertDate,
+          alertTime: alert.alertTime,
+          updatedBy: alert.updatedBy,
+          relatedRentalAlertId: alert.id,
+          status: "FAILED",
+          errorMessage: "Owner WhatsApp number not configured.",
+        });
+      }
+    } catch {
+      // Message logging must never block rental alert creation.
+    }
 
     return NextResponse.json({ success: true, data: alert }, { status: 201 });
   } catch {

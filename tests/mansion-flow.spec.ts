@@ -32,6 +32,11 @@ async function clearAlertHistory(request: APIRequestContext) {
   expect(response.ok()).toBeTruthy();
 }
 
+async function clearMessageLogs(request: APIRequestContext) {
+  const response = await request.delete('/api/message-logs');
+  expect(response.ok()).toBeTruthy();
+}
+
 async function clearTestWorkers(request: APIRequestContext) {
   const response = await request.get('/api/workers');
   expect(response.ok()).toBeTruthy();
@@ -64,6 +69,7 @@ async function clearTestWorkers(request: APIRequestContext) {
 
 async function clearTestData(request: APIRequestContext) {
   await clearAlertHistory(request);
+  await clearMessageLogs(request);
   await clearTestWorkers(request);
 }
 
@@ -235,6 +241,10 @@ test.describe('Mansion rental alert flow', () => {
     await page.getByRole('link', { name: 'Dashboard' }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
 
+    await expect(page.getByTestId('message-logs-subtitle')).toContainText(
+      'No real WhatsApp is sent in this version.',
+    );
+
     await ensureMockDeviceOnline(page);
 
     await page.getByTestId('mapped-scan-input').fill(String(TEST_WORKERS.attendanceWorker.attendanceDeviceUserId));
@@ -244,6 +254,14 @@ test.describe('Mansion rental alert flow', () => {
       hasText: TEST_WORKERS.attendanceWorker.name,
     });
     await expect(attendanceRows.first()).toContainText('IN');
+
+    const messageLogRowsAfterAttendance = page
+      .getByTestId('message-logs-table')
+      .locator('tbody tr')
+      .filter({ hasText: 'STAFF_ATTENDANCE' });
+    await expect(messageLogRowsAfterAttendance.first()).toContainText('mansion_staff_attendance_alert');
+    await expect(messageLogRowsAfterAttendance.first()).toContainText('MOCK_SENT');
+    await expect(messageLogRowsAfterAttendance.first()).toContainText('MOCK');
 
     await page.getByTestId('mapped-scan-input').fill(String(TEST_WORKERS.attendanceWorker.attendanceDeviceUserId));
     await page.getByTestId('mapped-scan-button').click();
@@ -273,6 +291,15 @@ test.describe('Mansion rental alert flow', () => {
       JSON.stringify(singleMappedAlertBody),
     ).toContain(String(TEST_WORKERS.attendanceWorker.singleRoomDeviceUserId));
 
+    const messageLogRowsAfterRental = page
+      .getByTestId('message-logs-table')
+      .locator('tbody tr')
+      .filter({ hasText: 'RENTAL_ALERT' });
+    await expect(messageLogRowsAfterRental.first()).toContainText(TEST_SETTINGS.ownerWhatsAppNumber);
+    await expect(messageLogRowsAfterRental.first()).toContainText('mansion_rental_alert');
+    await expect(messageLogRowsAfterRental.first()).toContainText('MOCK_SENT');
+    await expect(messageLogRowsAfterRental.first()).toContainText('MOCK');
+
     await page.getByTestId('mapped-scan-input').fill(String(TEST_WORKERS.roomOnlyWorker.doubleRoomDeviceUserId));
     await page.getByTestId('mapped-scan-button').click();
     await expect(page.getByText(`Rental alert created: Double Room by ${TEST_WORKERS.roomOnlyWorker.name}`)).toBeVisible();
@@ -298,6 +325,18 @@ test.describe('Mansion rental alert flow', () => {
     await page.getByTestId('mapped-scan-button').click();
     await expect(page.getByText('Mock device is offline. Scan ignored.')).toBeVisible();
     await expect(page.getByTestId('total-alerts-count')).toHaveText('2');
+
+    page.once('dialog', async (dialog) => {
+      await dialog.accept();
+    });
+    await page.getByRole('button', { name: 'Clear Message Logs' }).click();
+    await expect(page.getByTestId('message-logs-count')).toHaveText('0');
+    await expect(page.getByTestId('message-logs-empty')).toBeVisible();
+
+    await expect(page.getByTestId('total-alerts-count')).toHaveText('2');
+    await expect(page.getByTestId('staff-attendance-table').locator('tbody tr').first()).toContainText(
+      TEST_WORKERS.attendanceWorker.name,
+    );
 
     await clearAlertHistory(request);
     await clearTestWorkers(request);

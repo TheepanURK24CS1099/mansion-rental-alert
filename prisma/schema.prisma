@@ -76,3 +76,20 @@ model WorkerAttendance {
   source         String
   createdAt      DateTime @default(now())
 }
+
+model MessageLog {
+  id                   String   @id @default(cuid())
+  messageType          String
+  recipient            String
+  templateName         String
+  templateVariables    Json
+  messageBody          String
+  status               String
+  provider             String
+  relatedRentalAlertId String?
+  relatedAttendanceId  String?
+  errorMessage         String?
+  sentAt               DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}

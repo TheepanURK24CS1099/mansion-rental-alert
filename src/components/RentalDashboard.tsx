@@ -32,6 +32,12 @@ type AlertSource = "Dashboard Button" | "Mock Device Scan";
 
 type AttendanceStatus = "IN" | "OUT";
 
+type MessageLogMessageType = "RENTAL_ALERT" | "STAFF_ATTENDANCE";
+
+type MessageLogStatus = "MOCK_SENT" | "PENDING" | "SENT" | "FAILED";
+
+type MessageLogProvider = "MOCK" | "FAST2SMS";
+
 type DatabaseMode = "loading" | "connected" | "fallback";
 
 interface RentalAlertApiRecord {
@@ -106,6 +112,35 @@ interface WorkerAttendanceRecord {
   attendanceTime: string;
   source: string;
   workerName: string;
+}
+
+interface MessageLogApiRecord {
+  id: string;
+  messageType: MessageLogMessageType;
+  recipient: string;
+  templateName: string;
+  templateVariables: unknown;
+  messageBody: string;
+  status: MessageLogStatus;
+  provider: MessageLogProvider;
+  relatedRentalAlertId: string | null;
+  relatedAttendanceId: string | null;
+  errorMessage: string | null;
+  sentAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface MessageLogRecord {
+  id: string;
+  messageType: MessageLogMessageType;
+  recipient: string;
+  templateName: string;
+  status: MessageLogStatus;
+  provider: MessageLogProvider;
+  related: string;
+  errorMessage: string;
+  createdAtMs: number;
 }
 
 const ROOM_ACTIONS: RoomAction[] = [
@@ -608,6 +643,70 @@ function parseWorkerAttendanceApiResponse(body: unknown): WorkerAttendanceRecord
   });
 }
 
+function isMessageLogApiRecord(value: unknown): value is MessageLogApiRecord {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+
+  return (
+    typeof record.id === "string" &&
+    (record.messageType === "RENTAL_ALERT" || record.messageType === "STAFF_ATTENDANCE") &&
+    typeof record.recipient === "string" &&
+    typeof record.templateName === "string" &&
+    typeof record.messageBody === "string" &&
+    (record.status === "MOCK_SENT" || record.status === "PENDING" || record.status === "SENT" || record.status === "FAILED") &&
+    (record.provider === "MOCK" || record.provider === "FAST2SMS") &&
+    (typeof record.relatedRentalAlertId === "string" || record.relatedRentalAlertId === null) &&
+    (typeof record.relatedAttendanceId === "string" || record.relatedAttendanceId === null) &&
+    (typeof record.errorMessage === "string" || record.errorMessage === null) &&
+    (typeof record.sentAt === "string" || record.sentAt === null) &&
+    typeof record.createdAt === "string"
+  );
+}
+
+function parseMessageLogsApiResponse(body: unknown): MessageLogRecord[] {
+  if (typeof body !== "object" || body === null) {
+    return [];
+  }
+
+  const record = body as { success?: unknown; data?: unknown };
+
+  if (!record.success || !Array.isArray(record.data)) {
+    return [];
+  }
+
+  return record.data.flatMap((item) => {
+    if (!isMessageLogApiRecord(item)) {
+      return [];
+    }
+
+    const related =
+      item.relatedRentalAlertId !== null
+        ? `Rental Alert: ${item.relatedRentalAlertId}`
+        : item.relatedAttendanceId !== null
+          ? `Attendance: ${item.relatedAttendanceId}`
+          : "-";
+
+    return [
+      {
+        id: item.id,
+        messageType: item.messageType,
+        recipient: item.recipient,
+        templateName: item.templateName,
+        status: item.status,
+        provider: item.provider,
+        related,
+        errorMessage: item.errorMessage ?? "",
+        createdAtMs: Number.isFinite(new Date(item.createdAt).getTime())
+          ? new Date(item.createdAt).getTime()
+          : Date.now(),
+      },
+    ];
+  });
+}
+
 export default function RentalDashboard() {
   const [isLoadingAlerts, setIsLoadingAlerts] = useState(true);
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
@@ -617,6 +716,7 @@ export default function RentalDashboard() {
   const [settingsNotice, setSettingsNotice] = useState<string | null>(null);
   const [deviceNotice, setDeviceNotice] = useState<string | null>(null);
   const [attendanceNotice, setAttendanceNotice] = useState<string | null>(null);
+  const [messageLogsNotice, setMessageLogsNotice] = useState<string | null>(null);
   const [settings, setSettings] = useState<MansionSettings>(DEFAULT_SETTINGS);
   const [deviceState, setDeviceStateState] = useState<MockDeviceState>(
     DEFAULT_DEVICE_STATE,
@@ -626,6 +726,8 @@ export default function RentalDashboard() {
   const [mappedScanDeviceUserId, setMappedScanDeviceUserId] = useState("");
   const [attendanceLogs, setAttendanceLogs] = useState<WorkerAttendanceRecord[]>([]);
   const [isLoadingAttendance, setIsLoadingAttendance] = useState(true);
+  const [messageLogs, setMessageLogs] = useState<MessageLogRecord[]>([]);
+  const [isLoadingMessageLogs, setIsLoadingMessageLogs] = useState(true);
   const alerts = useSyncExternalStore(
     subscribeToRentalAlertStore,
     getRentalAlertSnapshot,
@@ -657,7 +759,11 @@ export default function RentalDashboard() {
         : "Fallback";
 
   const isLoadingPage =
-    isLoadingAlerts || isLoadingSettings || isLoadingDeviceState || isLoadingAttendance;
+    isLoadingAlerts ||
+    isLoadingSettings ||
+    isLoadingDeviceState ||
+    isLoadingAttendance ||
+    isLoadingMessageLogs;
 
   const reloadRentalAlerts = useCallback(async (): Promise<RentalAlertRecord[]> => {
     const response = await fetch("/api/rental-alerts", {
@@ -683,6 +789,19 @@ export default function RentalDashboard() {
 
     const body: unknown = await response.json();
     return parseWorkerAttendanceApiResponse(body);
+  }, []);
+
+  const reloadMessageLogs = useCallback(async (): Promise<MessageLogRecord[]> => {
+    const response = await fetch("/api/message-logs?limit=20", {
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      throw new Error(`GET /api/message-logs failed (${response.status})`);
+    }
+
+    const body: unknown = await response.json();
+    return parseMessageLogsApiResponse(body);
   }, []);
 
   useEffect(() => {
@@ -805,6 +924,40 @@ export default function RentalDashboard() {
       cancelled = true;
     };
   }, [reloadWorkerAttendance]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadMessageLogs() {
+      try {
+        const loadedMessageLogs = await reloadMessageLogs();
+
+        if (cancelled) {
+          return;
+        }
+
+        setMessageLogs(loadedMessageLogs);
+        setMessageLogsNotice(null);
+      } catch {
+        if (cancelled) {
+          return;
+        }
+
+        setMessageLogs([]);
+        setMessageLogsNotice("Message logs unavailable. Showing empty state.");
+      } finally {
+        if (!cancelled) {
+          setIsLoadingMessageLogs(false);
+        }
+      }
+    }
+
+    void loadMessageLogs();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadMessageLogs]);
 
   useEffect(() => {
     let cancelled = false;
@@ -952,6 +1105,12 @@ export default function RentalDashboard() {
       setDatabaseMode("connected");
       setDatabaseNotice(null);
       setWarning(null);
+      void reloadMessageLogs()
+        .then((loadedMessageLogs) => {
+          setMessageLogs(loadedMessageLogs);
+          setMessageLogsNotice(null);
+        })
+        .catch(() => undefined);
       return;
     } catch {
       replaceRentalAlertStore(nextAlerts, { persist: true });
@@ -1067,6 +1226,54 @@ export default function RentalDashboard() {
     setWarning("Mock device sync completed.");
   };
 
+  const handleRefreshMessageLogs = () => {
+    void reloadMessageLogs()
+      .then((loadedMessageLogs) => {
+        setMessageLogs(loadedMessageLogs);
+        setMessageLogsNotice(null);
+      })
+      .catch(() => {
+        setMessageLogs([]);
+        setMessageLogsNotice("Message logs unavailable. Showing empty state.");
+      });
+  };
+
+  const handleClearMessageLogs = async () => {
+    const confirmed = window.confirm(
+      "Delete all mock message logs? This does not delete rental alerts or attendance logs.",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/message-logs", {
+        method: "DELETE",
+      });
+      const body: unknown = await response.json();
+
+      if (
+        !response.ok ||
+        typeof body !== "object" ||
+        body === null ||
+        !("success" in body) ||
+        !(body as { success?: unknown }).success
+      ) {
+        throw new Error(
+          typeof body === "object" && body !== null && "error" in body
+            ? String((body as { error?: unknown }).error ?? "")
+            : `DELETE /api/message-logs failed (${response.status})`,
+        );
+      }
+
+      setMessageLogs([]);
+      setMessageLogsNotice("Message logs cleared.");
+    } catch {
+      setMessageLogsNotice("Unable to clear message logs.");
+    }
+  };
+
   const handleMappedFingerprintScan = async () => {
     if (deviceState.status === "offline") {
       setWarning("Mock device is offline. Scan ignored.");
@@ -1125,6 +1332,8 @@ export default function RentalDashboard() {
         setMappedScanDeviceUserId("");
         const refreshedAttendance = await reloadWorkerAttendance().catch(() => []);
         setAttendanceLogs(refreshedAttendance);
+        const refreshedMessageLogs = await reloadMessageLogs().catch(() => []);
+        setMessageLogs(refreshedMessageLogs);
         return;
       }
 
@@ -1136,6 +1345,8 @@ export default function RentalDashboard() {
         setMappedScanDeviceUserId("");
         const refreshedAlerts = await reloadRentalAlerts().catch(() => []);
         replaceRentalAlertStore(refreshedAlerts);
+        const refreshedMessageLogs = await reloadMessageLogs().catch(() => []);
+        setMessageLogs(refreshedMessageLogs);
         return;
       }
     }
@@ -1261,6 +1472,11 @@ export default function RentalDashboard() {
           {deviceNotice ? (
             <div className="mt-3 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
               {deviceNotice}
+            </div>
+          ) : null}
+          {messageLogsNotice ? (
+            <div className="mt-3 rounded-2xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-100">
+              {messageLogsNotice}
             </div>
           ) : null}
         </section>
@@ -1438,6 +1654,85 @@ export default function RentalDashboard() {
         <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-lg shadow-slate-950/20">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
+              <h3 className="text-2xl font-semibold text-white">Message Logs</h3>
+              <p className="mt-1 text-sm text-slate-400" data-testid="message-logs-subtitle">
+                Mock WhatsApp message history. No real WhatsApp is sent in this version.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-slate-300">
+              <p className="text-xs uppercase tracking-[0.25em] text-slate-500">Total Logs</p>
+              <p className="mt-1 font-semibold text-white" data-testid="message-logs-count">
+                {messageLogs.length}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={handleClearMessageLogs}
+              className="rounded-full border border-rose-300/20 bg-rose-400/10 px-4 py-2 text-sm font-medium text-rose-100 transition hover:bg-rose-400/20"
+            >
+              Clear Message Logs
+            </button>
+            <button
+              type="button"
+              onClick={handleRefreshMessageLogs}
+              className="rounded-full bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
+            >
+              Refresh Message Logs
+            </button>
+          </div>
+
+          <div className="mt-6 overflow-x-auto">
+            <table className="min-w-full divide-y divide-white/10 text-left text-sm" data-testid="message-logs-table">
+              <thead className="text-slate-400">
+                <tr>
+                  <th className="pb-3 pr-4 font-medium">Time</th>
+                  <th className="pb-3 pr-4 font-medium">Type</th>
+                  <th className="pb-3 pr-4 font-medium">Recipient</th>
+                  <th className="pb-3 pr-4 font-medium">Template</th>
+                  <th className="pb-3 pr-4 font-medium">Status</th>
+                  <th className="pb-3 pr-4 font-medium">Provider</th>
+                  <th className="pb-3 pr-4 font-medium">Related</th>
+                  <th className="pb-3 font-medium">Error</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5 text-slate-200">
+                {messageLogs.length > 0 ? (
+                  messageLogs.map((log) => (
+                    <tr key={log.id} className="align-top">
+                      <td className="py-4 pr-4 font-medium text-white">
+                        {new Date(log.createdAtMs).toLocaleTimeString("en-US", {
+                          hour: "numeric",
+                          minute: "2-digit",
+                          second: "2-digit",
+                        })}
+                      </td>
+                      <td className="py-4 pr-4">{log.messageType}</td>
+                      <td className="py-4 pr-4">{log.recipient}</td>
+                      <td className="py-4 pr-4">{log.templateName}</td>
+                      <td className="py-4 pr-4">{log.status}</td>
+                      <td className="py-4 pr-4">{log.provider}</td>
+                      <td className="py-4 pr-4">{log.related}</td>
+                      <td className="py-4">{log.errorMessage || "-"}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td className="py-6 text-slate-400" colSpan={8} data-testid="message-logs-empty">
+                      No mock message logs yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-lg shadow-slate-950/20">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
               <h3 className="text-2xl font-semibold text-white">Staff Attendance</h3>
               <p className="mt-1 text-sm text-slate-400">
                 Latest attendance logs from the worker attendance database.
@@ -1591,6 +1886,9 @@ export default function RentalDashboard() {
               <h3 className="text-2xl font-semibold text-white">
                 WhatsApp Message Preview
               </h3>
+              <p className="mt-2 text-xs text-cyan-200/80">
+                Mock WhatsApp logging enabled. No real WhatsApp sent.
+              </p>
               <pre className="mt-5 whitespace-pre-wrap rounded-2xl border border-white/10 bg-slate-950/70 p-4 text-sm leading-6 text-slate-200">
                 {getPreviewMessage(latestAlert)}
               </pre>
