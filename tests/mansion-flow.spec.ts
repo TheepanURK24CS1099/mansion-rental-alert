@@ -73,7 +73,15 @@ async function clearTestData(request: APIRequestContext) {
   await clearTestWorkers(request);
 }
 
+async function ensureDeveloperTestingToolsExpanded(page: import('@playwright/test').Page) {
+  const mappedScanButton = page.getByTestId('mapped-scan-button');
+  if (!(await mappedScanButton.isVisible())) {
+    await page.locator('summary', { hasText: 'Developer Testing Tools' }).click();
+  }
+}
+
 async function ensureMockDeviceOnline(page: import('@playwright/test').Page) {
+  await ensureDeveloperTestingToolsExpanded(page);
   const deviceStatus = page.getByTestId('device-status-label');
   if ((await deviceStatus.textContent())?.trim() === 'Mock Offline') {
     await page.getByRole('button', { name: 'Set Mock Online' }).click();
@@ -82,6 +90,7 @@ async function ensureMockDeviceOnline(page: import('@playwright/test').Page) {
 }
 
 async function ensureMockDeviceOffline(page: import('@playwright/test').Page) {
+  await ensureDeveloperTestingToolsExpanded(page);
   const deviceStatus = page.getByTestId('device-status-label');
   if ((await deviceStatus.textContent())?.trim() === 'Mock Online') {
     await page.getByRole('button', { name: 'Set Mock Offline' }).click();
@@ -156,6 +165,7 @@ test.describe('Mansion rental alert flow', () => {
     await page.getByRole('button', { name: 'Clear Database History' }).click();
     await expect(page.getByTestId('recent-alerts-empty')).toBeVisible();
 
+    await ensureDeveloperTestingToolsExpanded(page);
     await page.getByRole('button', { name: 'Single Room Rented' }).click();
     await expect(page.getByTestId('total-alerts-count')).toHaveText('1');
 
@@ -171,6 +181,7 @@ test.describe('Mansion rental alert flow', () => {
     await expect(page.getByTestId('total-alerts-count')).toHaveText('1');
     await expect(page.locator('tbody tr').filter({ hasText: 'Single Room' })).toBeVisible();
 
+    await ensureDeveloperTestingToolsExpanded(page);
     await page.getByRole('button', { name: 'Single Room Rented' }).click();
     await expect(page.getByText('Duplicate ignored: same room type was already recorded within 30 seconds.')).toBeVisible();
     await expect(page.getByTestId('total-alerts-count')).toHaveText('1');
@@ -179,6 +190,7 @@ test.describe('Mansion rental alert flow', () => {
     await page.reload();
     await expect(page.getByTestId('device-status-label')).toHaveText('Mock Offline');
 
+    await ensureDeveloperTestingToolsExpanded(page);
     await page.getByRole('button', { name: 'Simulate Device ID 102 Scan' }).click();
     await expect(page.getByText('Mock device is offline. Scan ignored.')).toBeVisible();
     await expect(page.getByTestId('total-alerts-count')).toHaveText('1');
@@ -245,6 +257,7 @@ test.describe('Mansion rental alert flow', () => {
       'No real WhatsApp is sent in this version.',
     );
 
+    await ensureDeveloperTestingToolsExpanded(page);
     await ensureMockDeviceOnline(page);
 
     await page.getByTestId('mapped-scan-input').fill(String(TEST_WORKERS.attendanceWorker.attendanceDeviceUserId));

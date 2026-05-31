@@ -9,7 +9,7 @@ export default function Home() {
             Secure owner portal
           </div>
           <h1 className="mt-5 text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-            SKC Mansion Alert System
+            Mansion Rental Alert System
           </h1>
           <p className="mx-auto mt-3 max-w-2xl text-sm font-medium leading-6 text-cyan-100 sm:text-base">
             Biometric-based room rental and staff attendance management.

@@ -723,6 +723,7 @@ export default function RentalDashboard() {
   );
   const [warning, setWarning] = useState<string | null>(null);
   const [activityMessage, setActivityMessage] = useState<string | null>(null);
+  const [isDeveloperToolsOpen, setIsDeveloperToolsOpen] = useState(false);
   const [mappedScanDeviceUserId, setMappedScanDeviceUserId] = useState("");
   const [attendanceLogs, setAttendanceLogs] = useState<WorkerAttendanceRecord[]>([]);
   const [isLoadingAttendance, setIsLoadingAttendance] = useState(true);
@@ -1386,62 +1387,70 @@ export default function RentalDashboard() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.15),_transparent_35%),linear-gradient(180deg,_#0f172a_0%,_#020617_100%)] px-4 py-6 text-slate-100 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-[#F8FAFC] px-4 py-6 text-[#64748B] sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
-        <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-slate-950/30 backdrop-blur xl:p-8">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-4">
-              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-sm font-medium text-emerald-200">
-                <span className="h-2 w-2 rounded-full bg-emerald-300" />
-                Local Mock Mode · No real WhatsApp sent
-              </div>
-              <div className="space-y-2">
-                <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                  {mansionName}
-                </h1>
-                <p className="max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
-                  Biometric room rental alerts for owner notifications
-                </p>
-                <p className="max-w-2xl text-xs leading-5 text-cyan-200/80">
-                  PostgreSQL database connected
-                </p>
+        <section className="rounded-3xl border border-[#D4AF37]/30 bg-gradient-to-r from-[#07162A] to-[#0B1F3A] p-6 shadow-xl xl:p-8">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+            <div className="space-y-3">
+              <h1 className="text-3xl font-semibold tracking-tight text-[#FFFFFF] sm:text-4xl">
+                {mansionName}
+              </h1>
+              <p className="text-sm text-[#F5E6A8] sm:text-base">
+                Room rental and staff attendance dashboard
+              </p>
+              <div className="flex flex-wrap gap-2 text-xs font-medium">
+                <span className="inline-flex items-center gap-2 rounded-full border border-[#D4AF37]/70 bg-[#FFFFFF]/10 px-3 py-1 text-[#FFFFFF]">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#D4AF37]" />
+                  Database Connected
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-full border border-[#D4AF37]/70 bg-[#FFFFFF]/10 px-3 py-1 text-[#FFFFFF]">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#D4AF37]" />
+                  Mock Biometric Mode
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-full border border-[#D4AF37]/70 bg-[#FFFFFF]/10 px-3 py-1 text-[#FFFFFF]">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#D4AF37]" />
+                  WhatsApp Mock Only
+                </span>
               </div>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-4 text-sm text-slate-300">
-              <p className="font-medium text-white">Current Mode</p>
-              <p className="mt-1">Mock biometric mode active</p>
-              <p>No real WhatsApp sent yet</p>
-              <p>No real biometric device connected yet</p>
-              <div className="mt-3 inline-flex rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-xs font-medium text-cyan-100">
-                Database Mode: {databaseModeLabel}
+            <div className="w-full max-w-xl space-y-4 rounded-2xl border border-[#D4AF37]/40 bg-[#FFFFFF]/10 p-4 text-sm text-[#FFFFFF]">
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="rounded-full border border-[#F5E6A8]/60 bg-[#F5E6A8]/20 px-3 py-1 font-medium text-[#FFFFFF]">
+                  Database Mode: {databaseModeLabel}
+                </span>
+                <span className="rounded-full border border-[#FFFFFF]/40 bg-[#FFFFFF]/10 px-3 py-1 font-medium text-[#FFFFFF]">
+                  Secure Mock Environment
+                </span>
               </div>
-              <p className="mt-3 text-xs text-slate-400" data-testid="owner-whatsapp-label">
+
+              <p className="text-xs text-[#F8FAFC]" data-testid="owner-whatsapp-label">
                 {ownerWhatsAppLabel}
               </p>
-              <nav className="mt-4 flex flex-wrap gap-2">
+
+              <nav className="flex flex-wrap gap-2">
                 <Link
                   href="/dashboard"
-                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+                  className="rounded-full border border-[#D4AF37] bg-[#0B1F3A] px-4 py-2 text-sm font-semibold text-[#FFFFFF]"
                 >
                   Dashboard
                 </Link>
                 <Link
                   href="/settings"
-                  className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-sm font-medium text-cyan-100"
+                  className="rounded-full border border-[#FFFFFF]/40 bg-[#FFFFFF]/10 px-4 py-2 text-sm font-medium text-[#FFFFFF] transition hover:bg-[#FFFFFF]/20"
                 >
                   Settings
                 </Link>
                 <Link
                   href="/workers"
-                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+                  className="rounded-full border border-[#FFFFFF]/40 bg-[#FFFFFF]/10 px-4 py-2 text-sm font-medium text-[#FFFFFF] transition hover:bg-[#FFFFFF]/20"
                 >
                   Workers
                 </Link>
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+                  className="rounded-full border border-[#FFFFFF]/40 bg-[#FFFFFF]/10 px-4 py-2 text-sm font-medium text-[#FFFFFF] transition hover:bg-[#FFFFFF]/20"
                 >
                   Logout
                 </button>
@@ -1450,32 +1459,32 @@ export default function RentalDashboard() {
           </div>
 
           {warning ? (
-            <div className="mt-6 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+            <div className="mt-6 rounded-2xl border border-[#D4AF37]/60 bg-[#F5E6A8]/20 px-4 py-3 text-sm text-[#FFFFFF]">
               {warning}
             </div>
           ) : null}
           {activityMessage ? (
-            <div className="mt-3 rounded-2xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
+            <div className="mt-3 rounded-2xl border border-[#F5E6A8]/60 bg-[#FFFFFF]/10 px-4 py-3 text-sm text-[#FFFFFF]">
               {activityMessage}
             </div>
           ) : null}
           {databaseNotice ? (
-            <div className="mt-3 rounded-2xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-100">
+            <div className="mt-3 rounded-2xl border border-[#D4AF37]/60 bg-[#FFFFFF]/10 px-4 py-3 text-sm text-[#FFFFFF]">
               {databaseNotice}
             </div>
           ) : null}
           {settingsNotice ? (
-            <div className="mt-3 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+            <div className="mt-3 rounded-2xl border border-[#D4AF37]/60 bg-[#FFFFFF]/10 px-4 py-3 text-sm text-[#FFFFFF]">
               {settingsNotice}
             </div>
           ) : null}
           {deviceNotice ? (
-            <div className="mt-3 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+            <div className="mt-3 rounded-2xl border border-[#D4AF37]/60 bg-[#FFFFFF]/10 px-4 py-3 text-sm text-[#FFFFFF]">
               {deviceNotice}
             </div>
           ) : null}
           {messageLogsNotice ? (
-            <div className="mt-3 rounded-2xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-100">
+            <div className="mt-3 rounded-2xl border border-[#D4AF37]/60 bg-[#FFFFFF]/10 px-4 py-3 text-sm text-[#FFFFFF]">
               {messageLogsNotice}
             </div>
           ) : null}
@@ -1483,185 +1492,160 @@ export default function RentalDashboard() {
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           {ROOM_ACTIONS.map((action) => (
-            <button
-              key={action.deviceUserId}
-              type="button"
-              onClick={() => handleRoomAction(action)}
-              className="group rounded-3xl border border-white/10 bg-white/5 p-5 text-left shadow-lg shadow-slate-950/20 transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-300"
-            >
-              <div className={`h-1.5 w-16 rounded-full bg-gradient-to-r ${action.accent}`} />
-              <div className="mt-4 flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
-                    Finger Action
-                  </p>
-                  <h2 className="mt-2 text-lg font-semibold text-white">
-                    {action.actionLabel}
-                  </h2>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-slate-950/60 px-3 py-2 text-right text-xs text-slate-300">
-                  Device ID
-                  <div className="text-base font-semibold text-white">
-                    {action.deviceUserId}
-                  </div>
-                </div>
-              </div>
-              <p className="mt-4 text-sm leading-6 text-slate-300">
-                Tap to create a local mock alert record for {action.roomType}.
-              </p>
-            </button>
-          ))}
-        </section>
-
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          {ROOM_ACTIONS.map((action) => (
             <article
               key={action.roomType}
-              className="rounded-3xl border border-white/10 bg-slate-950/60 p-5 shadow-lg shadow-slate-950/20"
+              className="rounded-3xl border border-[#D4AF37]/30 bg-[#FFFFFF] p-5 shadow-sm"
             >
-              <p className="text-sm text-slate-400">Today Overview</p>
-              <h3 className="mt-2 text-xl font-semibold text-white">
-                {action.roomType}
-              </h3>
+              <p className="text-sm text-[#64748B]">Today Overview</p>
+              <h3 className="mt-2 text-xl font-semibold text-[#0B1F3A]">{action.roomType}</h3>
               <div className="mt-4 flex items-end justify-between">
-                <span className="text-4xl font-bold text-cyan-300">
-                  {counts[action.roomType]}
-                </span>
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300">
+                <span className="text-4xl font-bold text-[#0B1F3A]">{counts[action.roomType]}</span>
+                <span className="rounded-full border border-[#D4AF37]/40 bg-[#F5E6A8]/30 px-3 py-1 text-xs text-[#0B1F3A]">
                   alerts today
                 </span>
               </div>
             </article>
           ))}
 
-          <article className="rounded-3xl border border-cyan-400/20 bg-cyan-500/10 p-5 shadow-lg shadow-slate-950/20 xl:col-span-1">
-            <p className="text-sm text-cyan-100/80">Today Overview</p>
-            <h3 className="mt-2 text-xl font-semibold text-white">Total Alerts</h3>
+          <article className="rounded-3xl border border-[#D4AF37]/60 bg-[#FFFFFF] p-5 shadow-sm xl:col-span-1">
+            <p className="text-sm text-[#64748B]">Today Overview</p>
+            <h3 className="mt-2 text-xl font-semibold text-[#0B1F3A]">Total Alerts</h3>
             <div className="mt-4 flex items-end justify-between">
-              <span
-                className="text-4xl font-bold text-cyan-200"
-                data-testid="total-alerts-count"
-              >
+              <span className="text-4xl font-bold text-[#0B1F3A]" data-testid="total-alerts-count">
                 {counts.total}
               </span>
-              <span className="rounded-full border border-cyan-200/20 bg-cyan-200/10 px-3 py-1 text-xs text-cyan-100">
+              <span className="rounded-full border border-[#D4AF37]/40 bg-[#F5E6A8]/30 px-3 py-1 text-xs text-[#0B1F3A]">
                 all room types
               </span>
             </div>
           </article>
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-lg shadow-slate-950/20">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <section className="rounded-3xl border border-[#D4AF37]/30 bg-[#FFFFFF] p-6 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h3 className="text-2xl font-semibold text-white">
-                Mock Device Sync Panel
-              </h3>
-              <p className="mt-1 text-sm text-slate-400">
-                Simulate biometric device scans before real hardware integration.
-              </p>
+              <h3 className="text-2xl font-semibold text-[#0B1F3A]">Recent Rental Alerts</h3>
+              <p className="mt-1 text-sm text-[#64748B]">Latest alerts saved in PostgreSQL database</p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-slate-300">
-              <p className="text-xs uppercase tracking-[0.25em] text-slate-500">
-                Device Status
-              </p>
-              <p className="mt-1 font-semibold text-white" data-testid="device-status-label">
-                {deviceStatusLabel}
-              </p>
-              <p className="mt-2 text-xs text-slate-400">Last Sync Time</p>
-              <p className="text-sm text-slate-200" data-testid="last-sync-label">
-                {lastSyncLabel}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-5 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={handleDeviceToggle}
-              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10"
-            >
-              {deviceState.status === "online"
-                ? "Set Mock Offline"
-                : "Set Mock Online"}
-            </button>
-            <button
-              type="button"
-              onClick={handleManualSync}
-              className="rounded-full bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
-            >
-              Manual Sync
-            </button>
-          </div>
-
-          <div className="mt-5 grid gap-4 xl:grid-cols-[1fr_1.2fr]">
-            <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
-              <h4 className="text-lg font-semibold text-white">Mapped FP ID Test Scan</h4>
-              <p className="mt-1 text-sm text-slate-400">
-                Use the mapped worker finger IDs to test attendance and room rental actions.
-              </p>
-              <p className="mt-2 text-xs text-cyan-200/80">
-                In production, real biometric device sync will trigger this flow automatically. This manual input is only for testing.
-              </p>
-              <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                <input
-                  value={mappedScanDeviceUserId}
-                  onChange={(event) => setMappedScanDeviceUserId(event.target.value)}
-                  placeholder="Device User ID"
-                  data-testid="mapped-scan-input"
-                  className="flex-1 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-300 focus:ring-2 focus:ring-cyan-300/30"
-                />
-                <button
-                  type="button"
-                  onClick={handleMappedFingerprintScan}
-                  data-testid="mapped-scan-button"
-                  className="rounded-full bg-cyan-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
-                >
-                  Simulate Mapped Fingerprint Scan
-                </button>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
-              <h4 className="text-lg font-semibold text-white">Legacy Quick Mock Buttons</h4>
-              <p className="mt-1 text-sm text-slate-400">
-                These are only for development testing. The correct real-device flow is Workers page FP mapping + Mapped FP ID scan.
-              </p>
-              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                {DEVICE_SCAN_ACTIONS.map((scanAction) => (
-                  <button
-                    key={scanAction.deviceUserId}
-                    type="button"
-                    onClick={() => handleDeviceScan(scanAction.deviceUserId)}
-                    className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-4 text-left text-sm text-white transition hover:bg-slate-900/80"
-                  >
-                    {scanAction.label}
-                  </button>
-                ))}
-              </div>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={handleClearDatabaseHistory}
+                className="rounded-full border border-[#D4AF37]/60 bg-[#FFFFFF] px-4 py-2 text-sm font-medium text-[#0B1F3A] transition hover:bg-[#F5E6A8]/30"
+              >
+                Clear Database History
+              </button>
+              <button
+                type="button"
+                onClick={exportHistory}
+                className="rounded-full border border-[#0B1F3A] bg-[#0B1F3A] px-4 py-2 text-sm font-semibold text-[#FFFFFF] transition hover:bg-[#07162A]"
+              >
+                Export Alert History JSON
+              </button>
             </div>
           </div>
 
-          <div className="mt-5 rounded-2xl border border-white/10 bg-slate-950/40 p-4 text-sm text-slate-300">
-            <p className="font-medium text-white">Device User ID Mapping</p>
-            <p className="mt-2">101 = Single Room</p>
-            <p>102 = Double Room</p>
-            <p>103 = Monthly Room</p>
-            <p>104 = Family Room</p>
+          <div className="mt-6 overflow-x-auto">
+            <table className="min-w-full divide-y divide-[#E2E8F0] text-left text-sm">
+              <thead className="text-[#64748B]">
+                <tr>
+                  <th className="pb-3 pr-4 font-medium">Time</th>
+                  <th className="pb-3 pr-4 font-medium">Room Type</th>
+                  <th className="pb-3 pr-4 font-medium">Device User ID</th>
+                  <th className="pb-3 pr-4 font-medium">Updated By</th>
+                  <th className="pb-3 pr-4 font-medium">Source</th>
+                  <th className="pb-3 font-medium">Message Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#F1F5F9] text-[#0B1F3A]">
+                {alerts.length > 0 ? (
+                  alerts.map((alert) => (
+                    <tr key={alert.id} className="align-top">
+                      <td className="py-4 pr-4 font-medium">{alert.time}</td>
+                      <td className="py-4 pr-4">{alert.roomType}</td>
+                      <td className="py-4 pr-4">{alert.deviceUserId}</td>
+                      <td className="py-4 pr-4">{alert.updatedBy}</td>
+                      <td className="py-4 pr-4">{alert.source}</td>
+                      <td className="py-4 text-[#0B1F3A]">{alert.messageStatus}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td className="py-6 text-[#64748B]" colSpan={6} data-testid="recent-alerts-empty">
+                      No rental alerts yet. Use a room action or mapped fingerprint scan to create one.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-lg shadow-slate-950/20">
+        <section className="rounded-3xl border border-[#D4AF37]/30 bg-[#FFFFFF] p-6 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h3 className="text-2xl font-semibold text-white">Message Logs</h3>
-              <p className="mt-1 text-sm text-slate-400" data-testid="message-logs-subtitle">
+              <h3 className="text-2xl font-semibold text-[#0B1F3A]">Staff Attendance</h3>
+              <p className="mt-1 text-sm text-[#64748B]">
+                Latest attendance logs from the worker attendance database.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-[#D4AF37]/30 bg-[#F8FAFC] px-4 py-3 text-sm text-[#64748B]">
+              <p className="text-xs uppercase tracking-[0.25em] text-[#64748B]">Latest Logs</p>
+              <p className="mt-1 font-semibold text-[#0B1F3A]">{attendanceLogs.length}</p>
+            </div>
+          </div>
+
+          {attendanceNotice ? (
+            <div className="mt-4 rounded-2xl border border-[#D4AF37]/60 bg-[#F5E6A8]/30 px-4 py-3 text-sm text-[#0B1F3A]">
+              {attendanceNotice}
+            </div>
+          ) : null}
+
+          <div className="mt-6 overflow-x-auto">
+            <table className="min-w-full divide-y divide-[#E2E8F0] text-left text-sm" data-testid="staff-attendance-table">
+              <thead className="text-[#64748B]">
+                <tr>
+                  <th className="pb-3 pr-4 font-medium">Time</th>
+                  <th className="pb-3 pr-4 font-medium">Worker</th>
+                  <th className="pb-3 pr-4 font-medium">Device User ID</th>
+                  <th className="pb-3 pr-4 font-medium">Status</th>
+                  <th className="pb-3 font-medium">Source</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#F1F5F9] text-[#0B1F3A]">
+                {attendanceLogs.length > 0 ? (
+                  attendanceLogs.map((log) => (
+                    <tr key={log.id} className="align-top">
+                      <td className="py-4 pr-4 font-medium">{log.attendanceTime}</td>
+                      <td className="py-4 pr-4">{log.workerName}</td>
+                      <td className="py-4 pr-4">{log.deviceUserId}</td>
+                      <td className="py-4 pr-4">{log.status}</td>
+                      <td className="py-4">{log.source}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td className="py-6 text-[#64748B]" colSpan={5} data-testid="attendance-empty">
+                      No attendance logs yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-[#D4AF37]/30 bg-[#FFFFFF] p-6 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 className="text-2xl font-semibold text-[#0B1F3A]">Message Logs</h3>
+              <p className="mt-1 text-sm text-[#64748B]" data-testid="message-logs-subtitle">
                 Mock WhatsApp message history. No real WhatsApp is sent in this version.
               </p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-slate-300">
-              <p className="text-xs uppercase tracking-[0.25em] text-slate-500">Total Logs</p>
-              <p className="mt-1 font-semibold text-white" data-testid="message-logs-count">
+            <div className="rounded-2xl border border-[#D4AF37]/30 bg-[#F8FAFC] px-4 py-3 text-sm text-[#64748B]">
+              <p className="text-xs uppercase tracking-[0.25em] text-[#64748B]">Total Logs</p>
+              <p className="mt-1 font-semibold text-[#0B1F3A]" data-testid="message-logs-count">
                 {messageLogs.length}
               </p>
             </div>
@@ -1671,22 +1655,22 @@ export default function RentalDashboard() {
             <button
               type="button"
               onClick={handleClearMessageLogs}
-              className="rounded-full border border-rose-300/20 bg-rose-400/10 px-4 py-2 text-sm font-medium text-rose-100 transition hover:bg-rose-400/20"
+              className="rounded-full border border-[#D4AF37]/60 bg-[#FFFFFF] px-4 py-2 text-sm font-medium text-[#0B1F3A] transition hover:bg-[#F5E6A8]/30"
             >
               Clear Message Logs
             </button>
             <button
               type="button"
               onClick={handleRefreshMessageLogs}
-              className="rounded-full bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
+              className="rounded-full border border-[#0B1F3A] bg-[#0B1F3A] px-4 py-2 text-sm font-semibold text-[#FFFFFF] transition hover:bg-[#07162A]"
             >
               Refresh Message Logs
             </button>
           </div>
 
           <div className="mt-6 overflow-x-auto">
-            <table className="min-w-full divide-y divide-white/10 text-left text-sm" data-testid="message-logs-table">
-              <thead className="text-slate-400">
+            <table className="min-w-full divide-y divide-[#E2E8F0] text-left text-sm" data-testid="message-logs-table">
+              <thead className="text-[#64748B]">
                 <tr>
                   <th className="pb-3 pr-4 font-medium">Time</th>
                   <th className="pb-3 pr-4 font-medium">Type</th>
@@ -1698,11 +1682,11 @@ export default function RentalDashboard() {
                   <th className="pb-3 font-medium">Error</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5 text-slate-200">
+              <tbody className="divide-y divide-[#F1F5F9] text-[#0B1F3A]">
                 {messageLogs.length > 0 ? (
                   messageLogs.map((log) => (
                     <tr key={log.id} className="align-top">
-                      <td className="py-4 pr-4 font-medium text-white">
+                      <td className="py-4 pr-4 font-medium">
                         {new Date(log.createdAtMs).toLocaleTimeString("en-US", {
                           hour: "numeric",
                           minute: "2-digit",
@@ -1720,7 +1704,7 @@ export default function RentalDashboard() {
                   ))
                 ) : (
                   <tr>
-                    <td className="py-6 text-slate-400" colSpan={8} data-testid="message-logs-empty">
+                    <td className="py-6 text-[#64748B]" colSpan={8} data-testid="message-logs-empty">
                       No mock message logs yet.
                     </td>
                   </tr>
@@ -1730,171 +1714,169 @@ export default function RentalDashboard() {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-lg shadow-slate-950/20">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h3 className="text-2xl font-semibold text-white">Staff Attendance</h3>
-              <p className="mt-1 text-sm text-slate-400">
-                Latest attendance logs from the worker attendance database.
-              </p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-slate-300">
-              <p className="text-xs uppercase tracking-[0.25em] text-slate-500">Latest Logs</p>
-              <p className="mt-1 font-semibold text-white">{attendanceLogs.length}</p>
-            </div>
-          </div>
-
-          {attendanceNotice ? (
-            <div className="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
-              {attendanceNotice}
-            </div>
-          ) : null}
-
-          <div className="mt-6 overflow-x-auto">
-            <table
-              className="min-w-full divide-y divide-white/10 text-left text-sm"
-              data-testid="staff-attendance-table"
-            >
-              <thead className="text-slate-400">
-                <tr>
-                  <th className="pb-3 pr-4 font-medium">Time</th>
-                  <th className="pb-3 pr-4 font-medium">Worker</th>
-                  <th className="pb-3 pr-4 font-medium">Device User ID</th>
-                  <th className="pb-3 pr-4 font-medium">Status</th>
-                  <th className="pb-3 font-medium">Source</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5 text-slate-200">
-                {attendanceLogs.length > 0 ? (
-                  attendanceLogs.map((log) => (
-                    <tr key={log.id} className="align-top">
-                      <td className="py-4 pr-4 font-medium text-white">{log.attendanceTime}</td>
-                      <td className="py-4 pr-4">{log.workerName}</td>
-                      <td className="py-4 pr-4">{log.deviceUserId}</td>
-                      <td className="py-4 pr-4">{log.status}</td>
-                      <td className="py-4">{log.source}</td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td className="py-6 text-slate-400" colSpan={5} data-testid="attendance-empty">
-                      No attendance logs yet.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+        <section className="rounded-3xl border border-[#D4AF37]/30 bg-[#FFFFFF] p-6 shadow-sm">
+          <h3 className="text-2xl font-semibold text-[#0B1F3A]">WhatsApp Message Preview</h3>
+          <p className="mt-2 text-sm text-[#64748B]">
+            Mock WhatsApp logging enabled. No real WhatsApp sent.
+          </p>
+          <pre className="mt-5 whitespace-pre-wrap rounded-2xl border border-[#D4AF37]/30 bg-[#F8FAFC] p-4 text-sm leading-6 text-[#0B1F3A]">
+            {getPreviewMessage(latestAlert)}
+          </pre>
         </section>
 
-        <section className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-lg shadow-slate-950/20">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <details
+          open={isDeveloperToolsOpen}
+          onToggle={(event) => setIsDeveloperToolsOpen(event.currentTarget.open)}
+          className="rounded-3xl border border-[#D4AF37]/30 bg-[#FFFFFF] p-6 shadow-sm"
+        >
+          <summary className="cursor-pointer list-none text-2xl font-semibold text-[#0B1F3A] marker:hidden">
+            Developer Testing Tools
+          </summary>
+          <p className="mt-2 text-sm text-[#64748B]">
+            Mock and legacy controls for development verification.
+          </p>
+
+          <div className="mt-5 rounded-2xl border border-[#D4AF37]/30 bg-[#F8FAFC] p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h3 className="text-2xl font-semibold text-white">
-                  Recent Rental Alerts
-                </h3>
-                <p className="mt-1 text-sm text-slate-400">
-                  Latest alerts saved in PostgreSQL database
-                </p>
-                <p className="mt-1 text-xs text-cyan-200/90">
-                  Loaded from mansion PostgreSQL database
+                <h4 className="text-lg font-semibold text-[#0B1F3A]">Mock Device Sync Panel</h4>
+                <p className="mt-1 text-sm text-[#64748B]">
+                  Simulate biometric device scans before real hardware integration.
                 </p>
               </div>
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={handleClearDatabaseHistory}
-                  className="rounded-full border border-rose-300/20 bg-rose-400/10 px-4 py-2 text-sm font-medium text-rose-100 transition hover:bg-rose-400/20"
-                >
-                  Clear Database History
-                </button>
-                <button
-                  type="button"
-                  onClick={exportHistory}
-                  className="rounded-full bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
-                >
-                  Export Alert History JSON
-                </button>
+              <div className="rounded-2xl border border-[#D4AF37]/30 bg-[#FFFFFF] px-4 py-3 text-sm text-[#64748B]">
+                <p className="text-xs uppercase tracking-[0.25em] text-[#64748B]">Device Status</p>
+                <p className="mt-1 font-semibold text-[#0B1F3A]" data-testid="device-status-label">
+                  {deviceStatusLabel}
+                </p>
+                <p className="mt-2 text-xs text-[#64748B]">Last Sync Time</p>
+                <p className="text-sm text-[#0B1F3A]" data-testid="last-sync-label">
+                  {lastSyncLabel}
+                </p>
               </div>
             </div>
 
-            <div className="mt-6 overflow-x-auto">
-              <table className="min-w-full divide-y divide-white/10 text-left text-sm">
-                <thead className="text-slate-400">
-                  <tr>
-                    <th className="pb-3 pr-4 font-medium">Time</th>
-                    <th className="pb-3 pr-4 font-medium">Room Type</th>
-                    <th className="pb-3 pr-4 font-medium">Device User ID</th>
-                    <th className="pb-3 pr-4 font-medium">Updated By</th>
-                    <th className="pb-3 pr-4 font-medium">Source</th>
-                    <th className="pb-3 font-medium">Message Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5 text-slate-200">
-                  {alerts.length > 0 ? (
-                    alerts.map((alert) => (
-                      <tr key={alert.id} className="align-top">
-                        <td className="py-4 pr-4 font-medium text-white">
-                          {alert.time}
-                        </td>
-                        <td className="py-4 pr-4">{alert.roomType}</td>
-                        <td className="py-4 pr-4">{alert.deviceUserId}</td>
-                        <td className="py-4 pr-4">{alert.updatedBy}</td>
-                        <td className="py-4 pr-4">{alert.source}</td>
-                        <td className="py-4 text-emerald-300">{alert.messageStatus}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td
-                        className="py-6 text-slate-400"
-                        colSpan={6}
-                        data-testid="recent-alerts-empty"
-                      >
-                        No rental alerts yet. Use a room action or mapped fingerprint scan to create one.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={handleDeviceToggle}
+                className="rounded-full border border-[#D4AF37]/60 bg-[#FFFFFF] px-4 py-2 text-sm font-medium text-[#0B1F3A] transition hover:bg-[#F5E6A8]/30"
+              >
+                {deviceState.status === "online" ? "Set Mock Offline" : "Set Mock Online"}
+              </button>
+              <button
+                type="button"
+                onClick={handleManualSync}
+                className="rounded-full border border-[#0B1F3A] bg-[#0B1F3A] px-4 py-2 text-sm font-semibold text-[#FFFFFF] transition hover:bg-[#07162A]"
+              >
+                Manual Sync
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-4 xl:grid-cols-[1fr_1.2fr]">
+              <div className="rounded-2xl border border-[#D4AF37]/30 bg-[#FFFFFF] p-4">
+                <h4 className="text-lg font-semibold text-[#0B1F3A]">Mapped FP ID Test Scan</h4>
+                <p className="mt-1 text-sm text-[#64748B]">
+                  Use the mapped worker finger IDs to test attendance and room rental actions.
+                </p>
+                <p className="mt-2 text-xs text-[#64748B]">
+                  In production, real biometric device sync will trigger this flow automatically. This manual input is only for testing.
+                </p>
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                  <input
+                    value={mappedScanDeviceUserId}
+                    onChange={(event) => setMappedScanDeviceUserId(event.target.value)}
+                    placeholder="Device User ID"
+                    data-testid="mapped-scan-input"
+                    className="flex-1 rounded-2xl border border-[#D4AF37]/30 bg-[#FFFFFF] px-4 py-3 text-[#0B1F3A] outline-none transition placeholder:text-[#64748B] focus:border-[#0B1F3A] focus:ring-2 focus:ring-[#0B1F3A]/20"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleMappedFingerprintScan}
+                    data-testid="mapped-scan-button"
+                    className="rounded-full border border-[#0B1F3A] bg-[#0B1F3A] px-4 py-3 text-sm font-semibold text-[#FFFFFF] transition hover:bg-[#07162A]"
+                  >
+                    Simulate Mapped Fingerprint Scan
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-[#D4AF37]/30 bg-[#FFFFFF] p-4">
+                <h4 className="text-lg font-semibold text-[#0B1F3A]">Legacy Quick Mock Buttons</h4>
+                <p className="mt-1 text-sm text-[#64748B]">
+                  These are only for development testing. The correct real-device flow is Workers page FP mapping + Mapped FP ID scan.
+                </p>
+                <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  {DEVICE_SCAN_ACTIONS.map((scanAction) => (
+                    <button
+                      key={scanAction.deviceUserId}
+                      type="button"
+                      onClick={() => handleDeviceScan(scanAction.deviceUserId)}
+                      className="rounded-2xl border border-[#D4AF37]/30 bg-[#F8FAFC] px-4 py-4 text-left text-sm text-[#0B1F3A] transition hover:bg-[#F5E6A8]/20"
+                    >
+                      {scanAction.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="space-y-6">
-            <section className="rounded-3xl border border-white/10 bg-slate-950/60 p-6 shadow-lg shadow-slate-950/20">
-              <h3 className="text-2xl font-semibold text-white">
-                Device Finger Mapping
-              </h3>
-              <div className="mt-5 space-y-3 text-sm text-slate-300">
-                <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  <span>Thumb → Device User ID 101 → Single Room Rented</span>
-                </div>
-                <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  <span>Index → Device User ID 102 → Double Room Rented</span>
-                </div>
-                <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  <span>Middle → Device User ID 103 → Monthly Room Rented</span>
-                </div>
-                <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  <span>Ring → Device User ID 104 → Family Room Rented</span>
-                </div>
-              </div>
-            </section>
+          <section className="mt-5 rounded-2xl border border-[#D4AF37]/30 bg-[#F8FAFC] p-4">
+            <h4 className="text-lg font-semibold text-[#0B1F3A]">Legacy Room Action Test Buttons</h4>
+            <p className="mt-1 text-sm text-[#64748B]">
+              Legacy room action shortcuts for mock rental alert generation.
+            </p>
+            <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {ROOM_ACTIONS.map((action) => (
+                <button
+                  key={action.deviceUserId}
+                  type="button"
+                  onClick={() => handleRoomAction(action)}
+                  className="group rounded-2xl border border-[#D4AF37]/30 bg-[#FFFFFF] p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:bg-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-[#0B1F3A]/30"
+                >
+                  <div className="h-1.5 w-14 rounded-full bg-[#D4AF37]" />
+                  <div className="mt-3 flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.25em] text-[#64748B]">Legacy Action</p>
+                      <h4 className="mt-2 text-base font-semibold text-[#0B1F3A]">{action.actionLabel}</h4>
+                    </div>
+                    <div className="rounded-xl border border-[#D4AF37]/30 bg-[#F8FAFC] px-2 py-1 text-right text-xs text-[#64748B]">
+                      Device ID
+                      <div className="text-sm font-semibold text-[#0B1F3A]">{action.deviceUserId}</div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </section>
 
-            <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-lg shadow-slate-950/20">
-              <h3 className="text-2xl font-semibold text-white">
-                WhatsApp Message Preview
-              </h3>
-              <p className="mt-2 text-xs text-cyan-200/80">
-                Mock WhatsApp logging enabled. No real WhatsApp sent.
-              </p>
-              <pre className="mt-5 whitespace-pre-wrap rounded-2xl border border-white/10 bg-slate-950/70 p-4 text-sm leading-6 text-slate-200">
-                {getPreviewMessage(latestAlert)}
-              </pre>
-            </section>
+          <div className="mt-5 rounded-2xl border border-[#D4AF37]/30 bg-[#F8FAFC] p-4 text-sm text-[#0B1F3A]">
+            <p className="font-medium">Device User ID Mapping</p>
+            <p className="mt-2">101 = Single Room</p>
+            <p>102 = Double Room</p>
+            <p>103 = Monthly Room</p>
+            <p>104 = Family Room</p>
           </div>
-        </section>
+
+          <section className="mt-5 rounded-2xl border border-[#D4AF37]/30 bg-[#F8FAFC] p-4">
+            <h4 className="text-lg font-semibold text-[#0B1F3A]">Legacy Finger Mapping Reference</h4>
+            <div className="mt-4 space-y-2 text-sm text-[#0B1F3A]">
+              <div className="rounded-xl border border-[#D4AF37]/30 bg-[#FFFFFF] px-4 py-3">
+                Thumb → Device User ID 101 → Single Room Rented
+              </div>
+              <div className="rounded-xl border border-[#D4AF37]/30 bg-[#FFFFFF] px-4 py-3">
+                Index → Device User ID 102 → Double Room Rented
+              </div>
+              <div className="rounded-xl border border-[#D4AF37]/30 bg-[#FFFFFF] px-4 py-3">
+                Middle → Device User ID 103 → Monthly Room Rented
+              </div>
+              <div className="rounded-xl border border-[#D4AF37]/30 bg-[#FFFFFF] px-4 py-3">
+                Ring → Device User ID 104 → Family Room Rented
+              </div>
+            </div>
+          </section>
+        </details>
       </div>
     </main>
   );
