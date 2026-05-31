@@ -1239,6 +1239,43 @@ export default function RentalDashboard() {
       });
   };
 
+  const handleClearAttendanceLogs = async () => {
+    const confirmed = window.confirm(
+      "Delete all staff attendance logs? This does not delete workers or fingerprint mappings.",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/worker-attendance", {
+        method: "DELETE",
+      });
+      const body: unknown = await response.json();
+
+      if (
+        !response.ok ||
+        typeof body !== "object" ||
+        body === null ||
+        !("success" in body) ||
+        !(body as { success?: unknown }).success
+      ) {
+        throw new Error(
+          typeof body === "object" && body !== null && "error" in body
+            ? String((body as { error?: unknown }).error ?? "")
+            : `DELETE /api/worker-attendance failed (${response.status})`,
+        );
+      }
+
+      const refreshedAttendance = await reloadWorkerAttendance().catch(() => []);
+      setAttendanceLogs(refreshedAttendance);
+      setAttendanceNotice("Staff attendance logs cleared.");
+    } catch {
+      setAttendanceNotice("Unable to clear staff attendance logs.");
+    }
+  };
+
   const handleClearMessageLogs = async () => {
     const confirmed = window.confirm(
       "Delete all mock message logs? This does not delete rental alerts or attendance logs.",
@@ -1589,9 +1626,18 @@ export default function RentalDashboard() {
                 Latest attendance logs from the worker attendance database.
               </p>
             </div>
-            <div className="rounded-2xl border border-[#D4AF37]/30 bg-[#F8FAFC] px-4 py-3 text-sm text-[#64748B]">
-              <p className="text-xs uppercase tracking-[0.25em] text-[#64748B]">Latest Logs</p>
-              <p className="mt-1 font-semibold text-[#0B1F3A]">{attendanceLogs.length}</p>
+            <div className="flex flex-col gap-3 sm:items-end">
+              <div className="rounded-2xl border border-[#D4AF37]/30 bg-[#F8FAFC] px-4 py-3 text-sm text-[#64748B]">
+                <p className="text-xs uppercase tracking-[0.25em] text-[#64748B]">Latest Logs</p>
+                <p className="mt-1 font-semibold text-[#0B1F3A]">{attendanceLogs.length}</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleClearAttendanceLogs}
+                className="rounded-full border border-[#D4AF37]/60 bg-[#FFFFFF] px-4 py-2 text-sm font-medium text-[#0B1F3A] transition hover:bg-[#F5E6A8]/30"
+              >
+                Clear Staff Attendance Logs
+              </button>
             </div>
           </div>
 
