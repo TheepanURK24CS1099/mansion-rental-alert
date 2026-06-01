@@ -133,7 +133,7 @@ test.describe('Mansion rental alert flow', () => {
     await page.getByLabel('Owner Name').fill(TEST_SETTINGS.ownerName);
     await page.getByLabel('Owner WhatsApp Number').fill(TEST_SETTINGS.ownerWhatsAppNumber);
     await page.getByLabel('Caretaker Name').fill(TEST_SETTINGS.caretakerName);
-    await page.getByRole('button', { name: 'Save' }).click();
+    await page.getByRole('button', { name: 'Save Owner Settings' }).click();
     await expect(page.getByText('Settings saved to database.')).toBeVisible();
 
     await page.goto('/settings');
@@ -376,5 +376,73 @@ test.describe('Mansion rental alert flow', () => {
 
     await page.goto('/dashboard');
     await expect(page).toHaveURL(/\/login$/);
+  });
+
+  test('saves biometric device settings', async ({ page, request }) => {
+    await page.goto('/login');
+    await page.getByLabel('Username').fill('skc');
+    await page.getByLabel('Password').fill('skcmansion');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page).toHaveURL(/\/dashboard$/);
+
+    await page.getByRole('link', { name: 'Settings' }).click();
+    await expect(page).toHaveURL(/\/settings$/);
+
+    // Verify Biometric Device Settings section exists
+    await expect(page.getByRole('heading', { name: 'Biometric Device Settings' })).toBeVisible();
+
+    // Set Device Mode to MOCK
+    await page.locator('select').first().selectOption('MOCK');
+
+    // Set Device Model
+    await page.getByPlaceholder('e.g., ZKTeco MB360').fill('Future Biometric Device');
+
+    // Set Device Port
+    await page.locator('input[type="number"]').fill('4370');
+
+    // Set Device Location
+    await page.getByPlaceholder('e.g., SKC Mansion Reception').fill('SKC Mansion Reception');
+
+    // Ensure Real Device is disabled (keep checkbox unchecked)
+    const realDeviceCheckbox = page.getByLabel('Enable Real Device');
+    const isChecked = await realDeviceCheckbox.isChecked();
+    if (isChecked) {
+      await realDeviceCheckbox.click();
+    }
+
+    // Click Save button
+    const saveButton = page.getByRole('button', { name: 'Save Device Settings' });
+    await saveButton.scrollIntoViewIfNeeded();
+    
+    // Listen for any error messages
+    const errorElements = page.getByText(/Failed to save device settings|Device IP is required/);
+    
+    await saveButton.click();
+
+    // Wait for response
+    await page.waitForTimeout(1500);
+    
+    // Check if there's an error message displayed
+    const errorCount = await errorElements.count();
+    if (errorCount > 0) {
+      const errorText = await errorElements.first().textContent();
+      throw new Error(`Device settings save failed with error: ${errorText}`);
+    }
+
+    // Verify settings persist via API
+    const deviceStateResponse = await request.get('/api/device-state');
+    expect(deviceStateResponse.ok()).toBeTruthy();
+    const deviceStateBody: unknown = await deviceStateResponse.json();
+    
+    expect(deviceStateBody).toMatchObject({
+      success: true,
+      data: {
+        deviceMode: 'MOCK',
+        deviceModel: 'Future Biometric Device',
+        devicePort: 4370,
+        deviceLocation: 'SKC Mansion Reception',
+        realDeviceEnabled: false,
+      },
+    });
   });
 });

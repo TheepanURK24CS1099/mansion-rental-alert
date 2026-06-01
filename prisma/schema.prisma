@@ -36,11 +36,19 @@ model AppSettings {
 }
 
 model DeviceState {
-  id         String   @id @default(cuid())
-  status     String   @default("online")
-  lastSyncAt String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id                  String   @id @default(cuid())
+  status              String   @default("online")
+  lastSyncAt          String?
+  deviceMode          String   @default("MOCK")
+  deviceModel         String   @default("Not configured")
+  deviceIp            String?
+  devicePort          Int      @default(4370)
+  deviceLocation      String?
+  realDeviceEnabled   Boolean  @default(false)
+  lastHeartbeatAt     DateTime?
+  connectionStatus    String   @default("MOCK_OFFLINE")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }
 
 model Worker {
