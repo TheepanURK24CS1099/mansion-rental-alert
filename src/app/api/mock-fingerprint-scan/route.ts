@@ -59,6 +59,15 @@ export async function POST(request: Request) {
     }
 
     // Return the same response shape as before for both attendance and rental.
+    if (result.type === "duplicate") {
+      return NextResponse.json({
+        success: true,
+        duplicate: true,
+        type: "duplicate",
+        message: result.message,
+      });
+    }
+
     if (result.type === "attendance") {
       return NextResponse.json({
         success: true,

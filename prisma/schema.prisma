@@ -101,3 +101,21 @@ model MessageLog {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 }
+
+model DeviceScanLog {
+  id                   String   @id @default(cuid())
+  deviceUserId         Int
+  workerId             String?
+  workerName           String?
+  actionType           String?
+  scanTime             DateTime
+  source               String
+  processingStatus     String
+  resultType           String?
+  relatedAttendanceId  String?
+  relatedRentalAlertId String?
+  duplicateOfId        String?
+  errorMessage         String?
+  createdAt            DateTime @default(now())
+}
+

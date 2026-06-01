@@ -37,6 +37,11 @@ async function clearMessageLogs(request: APIRequestContext) {
   expect(response.ok()).toBeTruthy();
 }
 
+async function clearScanLogs(request: APIRequestContext) {
+  const response = await request.delete('/api/device-scan-logs');
+  expect(response.ok()).toBeTruthy();
+}
+
 async function clearTestWorkers(request: APIRequestContext) {
   const response = await request.get('/api/workers');
   expect(response.ok()).toBeTruthy();
@@ -70,6 +75,7 @@ async function clearTestWorkers(request: APIRequestContext) {
 async function clearTestData(request: APIRequestContext) {
   await clearAlertHistory(request);
   await clearMessageLogs(request);
+  await clearScanLogs(request);
   await clearTestWorkers(request);
 }
 
@@ -276,6 +282,9 @@ test.describe('Mansion rental alert flow', () => {
     await expect(messageLogRowsAfterAttendance.first()).toContainText('MOCK_SENT');
     await expect(messageLogRowsAfterAttendance.first()).toContainText('MOCK');
 
+    // Clear scan logs to bypass duplicate protection for E2E test toggling
+    await clearScanLogs(request);
+
     await page.getByTestId('mapped-scan-input').fill(String(TEST_WORKERS.attendanceWorker.attendanceDeviceUserId));
     await page.getByTestId('mapped-scan-button').click();
     await expect(page.getByText(`Attendance marked: ${TEST_WORKERS.attendanceWorker.name} OUT`)).toBeVisible();
@@ -444,5 +453,147 @@ test.describe('Mansion rental alert flow', () => {
         realDeviceEnabled: false,
       },
     });
+  });
+
+  test('covers device scan logs and duplicate protection', async ({ page, request }) => {
+    // 1. Log in
+    await page.goto('/login');
+    await page.getByLabel('Username').fill('skc');
+    await page.getByLabel('Password').fill('skcmansion');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page).toHaveURL(/\/dashboard$/);
+
+    // 2. Set up Settings
+    await page.getByRole('link', { name: 'Settings' }).click();
+    await expect(page).toHaveURL(/\/settings$/);
+    await page.getByLabel('Mansion / PG Name').fill(TEST_SETTINGS.mansionName);
+    await page.getByLabel('Owner Name').fill(TEST_SETTINGS.ownerName);
+    await page.getByLabel('Owner WhatsApp Number').fill(TEST_SETTINGS.ownerWhatsAppNumber);
+    await page.getByLabel('Caretaker Name').fill(TEST_SETTINGS.caretakerName);
+    await page.getByRole('button', { name: 'Save Owner Settings' }).click();
+    await expect(page.getByText('Settings saved to database.')).toBeVisible();
+
+    // 3. Save Worker
+    await page.getByRole('link', { name: 'Workers' }).click();
+    await expect(page).toHaveURL(/\/workers$/);
+    await page.getByLabel('Person Name').fill(TEST_WORKERS.attendanceWorker.name);
+    await page.getByLabel('Phone').fill(TEST_WORKERS.attendanceWorker.phone);
+    await page.getByLabel('Attendance Device User ID').fill(String(TEST_WORKERS.attendanceWorker.attendanceDeviceUserId));
+    await page.getByLabel('Single Room Device User ID').fill(String(TEST_WORKERS.attendanceWorker.singleRoomDeviceUserId));
+    await page.getByLabel('Double Room Device User ID').fill(String(TEST_WORKERS.attendanceWorker.doubleRoomDeviceUserId));
+    await page.getByLabel('Monthly Room Device User ID').fill(String(TEST_WORKERS.attendanceWorker.monthlyRoomDeviceUserId));
+    await page.getByLabel('Family Room Device User ID').fill(String(TEST_WORKERS.attendanceWorker.familyRoomDeviceUserId));
+    await page.getByRole('button', { name: 'Save Person' }).click();
+    await expect(page.locator('tbody tr').filter({ hasText: TEST_WORKERS.attendanceWorker.name })).toBeVisible();
+
+    interface MockScanResponse {
+      success: boolean;
+      type: string;
+      status?: string;
+      workerName?: string;
+      duplicate?: boolean;
+      message?: string;
+    }
+
+    interface WorkerAttendanceLog {
+      deviceUserId: number;
+    }
+
+    interface WorkerAttendanceResponse {
+      success: boolean;
+      data: WorkerAttendanceLog[];
+    }
+
+    interface DeviceScanLogRecord {
+      id: string;
+      processingStatus: string;
+      duplicateOfId?: string | null;
+      resultType?: string | null;
+      workerName?: string | null;
+    }
+
+    interface DeviceScanLogsResponse {
+      success: boolean;
+      data: DeviceScanLogRecord[];
+    }
+
+    interface DeleteLogsResponse {
+      success: boolean;
+      deletedCount: number;
+    }
+
+    // 4. Test first processed scan (Attendance IN)
+    const scanResponse1 = await request.post('/api/mock-fingerprint-scan', {
+      data: {
+        deviceUserId: TEST_WORKERS.attendanceWorker.attendanceDeviceUserId,
+        source: 'Mock Device Scan',
+      },
+    });
+    expect(scanResponse1.ok()).toBeTruthy();
+    const scanBody1 = (await scanResponse1.json()) as MockScanResponse;
+    expect(scanBody1.success).toBeTruthy();
+    expect(scanBody1.type).toBe('attendance');
+    expect(scanBody1.status).toBe('IN');
+
+    // 5. Test immediate duplicate scan (Attendance IN again - ignored)
+    const scanResponse2 = await request.post('/api/mock-fingerprint-scan', {
+      data: {
+        deviceUserId: TEST_WORKERS.attendanceWorker.attendanceDeviceUserId,
+        source: 'Mock Device Scan',
+      },
+    });
+    expect(scanResponse2.ok()).toBeTruthy();
+    const scanBody2 = (await scanResponse2.json()) as MockScanResponse;
+    expect(scanBody2).toMatchObject({
+      success: true,
+      duplicate: true,
+      type: 'duplicate',
+      message: 'Duplicate scan ignored.',
+    });
+
+    // 6. Verify only ONE attendance log exists via API
+    const attendanceResponse = await request.get('/api/worker-attendance');
+    expect(attendanceResponse.ok()).toBeTruthy();
+    const attendanceBody = (await attendanceResponse.json()) as WorkerAttendanceResponse;
+    const filteredAttendance = attendanceBody.data.filter(
+      (log) => log.deviceUserId === TEST_WORKERS.attendanceWorker.attendanceDeviceUserId
+    );
+    expect(filteredAttendance.length).toBe(1);
+
+    // 7. Verify device scan logs were recorded correctly
+    const logsResponse = await request.get('/api/device-scan-logs');
+    expect(logsResponse.ok()).toBeTruthy();
+    const logsBody = (await logsResponse.json()) as DeviceScanLogsResponse;
+    expect(logsBody.success).toBeTruthy();
+    expect(logsBody.data.length).toBe(2);
+
+    const duplicateLog = logsBody.data.find((log) => log.processingStatus === 'IGNORED_DUPLICATE');
+    const processedLog = logsBody.data.find((log) => log.processingStatus === 'PROCESSED');
+
+    expect(duplicateLog).toBeDefined();
+    expect(processedLog).toBeDefined();
+    expect(duplicateLog?.duplicateOfId).toBe(processedLog?.id);
+    expect(duplicateLog?.resultType).toBe('ATTENDANCE');
+    expect(processedLog?.resultType).toBe('ATTENDANCE');
+    expect(processedLog?.workerName).toBe(TEST_WORKERS.attendanceWorker.name);
+
+    // 8. Test clean logs deletion
+    const deleteLogsResponse = await request.delete('/api/device-scan-logs');
+    expect(deleteLogsResponse.ok()).toBeTruthy();
+    const deleteLogsBody = (await deleteLogsResponse.json()) as DeleteLogsResponse;
+    expect(deleteLogsBody.success).toBeTruthy();
+    expect(deleteLogsBody.deletedCount).toBe(2);
+
+    // Ensure logs are empty now
+    const logsResponseAfterDelete = await request.get('/api/device-scan-logs');
+    expect(logsResponseAfterDelete.ok()).toBeTruthy();
+    const logsBodyAfterDelete = (await logsResponseAfterDelete.json()) as DeviceScanLogsResponse;
+    expect(logsBodyAfterDelete.data.length).toBe(0);
+
+    // Ensure other data (like attendance logs) were NOT deleted
+    const attendanceResponseAfterDelete = await request.get('/api/worker-attendance');
+    expect(attendanceResponseAfterDelete.ok()).toBeTruthy();
+    const attendanceBodyAfterDelete = (await attendanceResponseAfterDelete.json()) as WorkerAttendanceResponse;
+    expect(attendanceBodyAfterDelete.data.length).toBeGreaterThan(0);
   });
 });

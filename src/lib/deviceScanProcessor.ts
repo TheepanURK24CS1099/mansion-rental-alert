@@ -38,10 +38,18 @@ export interface DeviceScanFailure {
   error: string;
 }
 
+export interface DeviceScanDuplicate {
+  success: true;
+  duplicate: true;
+  type: "duplicate";
+  message: string;
+}
+
 export type DeviceScanResult =
   | DeviceScanSuccessAttendance
   | DeviceScanSuccessRental
-  | DeviceScanFailure;
+  | DeviceScanFailure
+  | DeviceScanDuplicate;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -91,6 +99,18 @@ export async function processDeviceScan(
     });
 
     if (!mapping) {
+      // Create DeviceScanLog with processingStatus = FAILED, resultType = UNKNOWN
+      await prisma.deviceScanLog.create({
+        data: {
+          deviceUserId: input.deviceUserId,
+          scanTime: input.scanTime ? input.scanTime : new Date(),
+          source: input.source,
+          processingStatus: "FAILED",
+          resultType: "UNKNOWN",
+          errorMessage: "Unknown Device User ID.",
+        },
+      });
+
       return {
         success: false,
         type: "UNKNOWN",
@@ -100,6 +120,21 @@ export async function processDeviceScan(
 
     // 2. Check worker status ──────────────────────────────────────────────────
     if (!mapping.worker.isActive) {
+      // Create DeviceScanLog with processingStatus = FAILED, resultType = INACTIVE_WORKER
+      await prisma.deviceScanLog.create({
+        data: {
+          deviceUserId: input.deviceUserId,
+          workerId: mapping.workerId,
+          workerName: mapping.worker.name,
+          actionType: mapping.actionType,
+          scanTime: input.scanTime ? input.scanTime : new Date(),
+          source: input.source,
+          processingStatus: "FAILED",
+          resultType: "INACTIVE_WORKER",
+          errorMessage: "Worker is inactive.",
+        },
+      });
+
       return {
         success: false,
         type: "INACTIVE_WORKER",
@@ -109,8 +144,49 @@ export async function processDeviceScan(
 
     // 3. Resolve scan timestamp ───────────────────────────────────────────────
     const now = input.scanTime ? input.scanTime.getTime() : Date.now();
+    const currentScanTime = new Date(now);
     const parts = formatDateParts(now);
     const source = input.source;
+
+    // 3.5 Check for duplicate scans within 30 seconds ─────────────────────────
+    const thirtySecondsAgo = new Date(now - 30 * 1000);
+    const latestProcessedScan = await prisma.deviceScanLog.findFirst({
+      where: {
+        deviceUserId: input.deviceUserId,
+        processingStatus: "PROCESSED",
+        scanTime: {
+          gte: thirtySecondsAgo,
+          lte: currentScanTime,
+        },
+      },
+      orderBy: {
+        scanTime: "desc",
+      },
+    });
+
+    if (latestProcessedScan) {
+      // Create DeviceScanLog with processingStatus = IGNORED_DUPLICATE
+      await prisma.deviceScanLog.create({
+        data: {
+          deviceUserId: input.deviceUserId,
+          workerId: mapping.workerId,
+          workerName: mapping.worker.name,
+          actionType: mapping.actionType,
+          scanTime: currentScanTime,
+          source,
+          processingStatus: "IGNORED_DUPLICATE",
+          resultType: latestProcessedScan.resultType,
+          duplicateOfId: latestProcessedScan.id,
+        },
+      });
+
+      return {
+        success: true,
+        duplicate: true,
+        type: "duplicate",
+        message: "Duplicate scan ignored.",
+      };
+    }
 
     // 4. Fetch owner WhatsApp number ──────────────────────────────────────────
     const settings = await prisma.appSettings.findFirst({
@@ -121,6 +197,20 @@ export async function processDeviceScan(
     // ── ATTENDANCE path ──────────────────────────────────────────────────────
     if (mapping.actionType === "ATTENDANCE") {
       if (mapping.worker.personType !== "ATTENDANCE_AND_ROOM") {
+        await prisma.deviceScanLog.create({
+          data: {
+            deviceUserId: mapping.deviceUserId,
+            workerId: mapping.workerId,
+            workerName: mapping.worker.name,
+            actionType: mapping.actionType,
+            scanTime: currentScanTime,
+            source,
+            processingStatus: "FAILED",
+            resultType: "INVALID_ACTION",
+            errorMessage: "Attendance mapping is invalid for this worker.",
+          },
+        });
+
         return {
           success: false,
           type: "INVALID_MAPPING",
@@ -168,6 +258,21 @@ export async function processDeviceScan(
         // Message logging must never block attendance creation.
       }
 
+      // Create DeviceScanLog with processingStatus = PROCESSED, resultType = ATTENDANCE
+      await prisma.deviceScanLog.create({
+        data: {
+          deviceUserId: mapping.deviceUserId,
+          workerId: mapping.workerId,
+          workerName: mapping.worker.name,
+          actionType: mapping.actionType,
+          scanTime: currentScanTime,
+          source,
+          processingStatus: "PROCESSED",
+          resultType: "ATTENDANCE",
+          relatedAttendanceId: attendance.id,
+        },
+      });
+
       return {
         success: true,
         type: "attendance",
@@ -179,6 +284,20 @@ export async function processDeviceScan(
 
     // ── RENTAL path ──────────────────────────────────────────────────────────
     if (!isRoomActionType(mapping.actionType)) {
+      await prisma.deviceScanLog.create({
+        data: {
+          deviceUserId: mapping.deviceUserId,
+          workerId: mapping.workerId,
+          workerName: mapping.worker.name,
+          actionType: mapping.actionType,
+          scanTime: currentScanTime,
+          source,
+          processingStatus: "FAILED",
+          resultType: "INVALID_ACTION",
+          errorMessage: "Unsupported action type.",
+        },
+      });
+
       return {
         success: false,
         type: "UNSUPPORTED_ACTION",
@@ -189,6 +308,20 @@ export async function processDeviceScan(
     const roomType = actionTypeToRoomType(mapping.actionType);
 
     if (!roomType) {
+      await prisma.deviceScanLog.create({
+        data: {
+          deviceUserId: mapping.deviceUserId,
+          workerId: mapping.workerId,
+          workerName: mapping.worker.name,
+          actionType: mapping.actionType,
+          scanTime: currentScanTime,
+          source,
+          processingStatus: "FAILED",
+          resultType: "INVALID_ACTION",
+          errorMessage: "Unsupported room type.",
+        },
+      });
+
       return {
         success: false,
         type: "UNSUPPORTED_ACTION",
@@ -235,6 +368,21 @@ export async function processDeviceScan(
       // Message logging must never block rental creation.
     }
 
+    // Create DeviceScanLog with processingStatus = PROCESSED, resultType = RENTAL
+    await prisma.deviceScanLog.create({
+      data: {
+        deviceUserId: mapping.deviceUserId,
+        workerId: mapping.workerId,
+        workerName: mapping.worker.name,
+        actionType: mapping.actionType,
+        scanTime: currentScanTime,
+        source,
+        processingStatus: "PROCESSED",
+        resultType: "RENTAL",
+        relatedRentalAlertId: rentalAlert.id,
+      },
+    });
+
     return {
       success: true,
       type: "rental",
@@ -242,7 +390,21 @@ export async function processDeviceScan(
       roomType: rentalAlert.roomType,
       rentalAlertId: rentalAlert.id,
     };
-  } catch {
+  } catch (err) {
+    try {
+      await prisma.deviceScanLog.create({
+        data: {
+          deviceUserId: input.deviceUserId,
+          scanTime: input.scanTime ? input.scanTime : new Date(),
+          source: input.source,
+          processingStatus: "FAILED",
+          resultType: "UNKNOWN",
+          errorMessage: err instanceof Error ? err.message : "Unable to process device scan.",
+        },
+      });
+    } catch {
+      // Don't crash if logging fails
+    }
     return {
       success: false,
       type: "ERROR",
@@ -250,3 +412,4 @@ export async function processDeviceScan(
     };
   }
 }
+
