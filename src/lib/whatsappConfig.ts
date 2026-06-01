@@ -4,6 +4,8 @@ export interface WhatsAppConfig {
   mode: WhatsAppMode;
   apiKey: string;
   senderNumber: string;
+  whatsappVersion: string;
+  phoneNumberId: string;
   rentalTemplateName: string;
   rentalTemplateId: string;
   rentalMessageId: string;
@@ -27,6 +29,8 @@ export function getWhatsAppConfig(): WhatsAppConfig {
     mode,
     apiKey: readEnvValue(process.env.FAST2SMS_API_KEY),
     senderNumber: readEnvValue(process.env.MANSION_WHATSAPP_SENDER_NUMBER),
+    whatsappVersion: readEnvValue(process.env.MANSION_WHATSAPP_VERSION, "v24.0"),
+    phoneNumberId: readEnvValue(process.env.MANSION_PHONE_NUMBER_ID, "980115305195769"),
     rentalTemplateName: readEnvValue(process.env.MANSION_RENTAL_TEMPLATE_NAME),
     rentalTemplateId: readEnvValue(process.env.MANSION_RENTAL_TEMPLATE_ID),
     rentalMessageId: readEnvValue(process.env.MANSION_RENTAL_MESSAGE_ID),

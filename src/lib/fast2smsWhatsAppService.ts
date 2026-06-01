@@ -4,6 +4,7 @@ export interface Fast2SmsTemplateMessageInput {
   recipient: string;
   messageId: string;
   variables: string[];
+  templateName?: string;
 }
 
 export interface Fast2SmsNormalizedResult {
@@ -32,7 +33,7 @@ export interface StaffAttendanceWhatsAppInput {
   attendanceTime: string;
 }
 
-const FAST2SMS_WHATSAPP_ENDPOINT = "https://www.fast2sms.com/api/whatsapp/send";
+const FAST2SMS_WHATSAPP_BASE_URL = "https://www.fast2sms.com/dev/whatsapp";
 
 // Connected to real app flow in Version 11C/11D after manual test.
 
@@ -54,16 +55,38 @@ export async function sendFast2SmsTemplateMessage(
     };
   }
 
+  const templateName =
+    input.templateName ??
+    (input.messageId === config.rentalMessageId
+      ? config.rentalTemplateName
+      : input.messageId === config.attendanceMessageId
+        ? config.attendanceTemplateName
+        : input.messageId);
+
+  const endpoint = `${FAST2SMS_WHATSAPP_BASE_URL}/${config.whatsappVersion}/${config.phoneNumberId}/messages`;
+
   const payload = {
-    sender_id: config.senderNumber,
-    template_id: input.messageId,
-    variables_values: input.variables,
-    route: "whatsapp",
-    numbers: input.recipient,
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to: input.recipient,
+    type: "template",
+    template: {
+      name: templateName,
+      language: { code: "en" },
+      components: [
+        {
+          type: "body",
+          parameters: input.variables.map((text) => ({
+            type: "text",
+            text,
+          })),
+        },
+      ],
+    },
   };
 
   try {
-    const response = await fetch(FAST2SMS_WHATSAPP_ENDPOINT, {
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: {
         Authorization: config.apiKey,
@@ -114,6 +137,7 @@ export async function sendRentalAlertWhatsApp(
   return sendFast2SmsTemplateMessage({
     recipient: input.recipient,
     messageId: config.rentalMessageId,
+    templateName: config.rentalTemplateName,
     variables: [input.roomType, input.alertDate, input.alertTime, input.updatedBy],
   });
 }
@@ -126,6 +150,7 @@ export async function sendStaffAttendanceWhatsApp(
   return sendFast2SmsTemplateMessage({
     recipient: input.recipient,
     messageId: config.attendanceMessageId,
+    templateName: config.attendanceTemplateName,
     variables: [input.workerName, input.status, input.attendanceDate, input.attendanceTime],
   });
 }
