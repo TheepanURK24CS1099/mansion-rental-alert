@@ -14,5 +14,8 @@ export default defineConfig({
     url: 'http://localhost:3000',
     reuseExistingServer: true,
     timeout: 120000,
+    env: {
+      MANSION_WHATSAPP_MODE: 'MOCK',
+    },
   },
 });
