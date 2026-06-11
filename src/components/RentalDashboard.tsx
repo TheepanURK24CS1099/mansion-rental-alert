@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import { clearSessionValue } from "@/lib/sessionStore";
 import {
   DEFAULT_SETTINGS,
@@ -470,6 +472,21 @@ function getTodayDateInputValue(): string {
 function getThisMonthStartDateInputValue(): string {
   const now = new Date();
   return formatDateInputValue(new Date(now.getFullYear(), now.getMonth(), 1).getTime());
+}
+
+function formatReportDateTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleString("en-US", {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function buildReportFileName(fromDate: string, toDate: string): string {
+  return `skc-mansion-report-${fromDate}-to-${toDate}.pdf`;
 }
 
 function buildDateRangeQuery(params: {
@@ -1233,6 +1250,19 @@ export default function RentalDashboard() {
     );
   }, [alerts, appliedFromDate, appliedToDate]);
 
+  const reportSummary = useMemo(
+    () => ({
+      singleRoomAlerts: counts["Single Room"],
+      doubleRoomAlerts: counts["Double Room"],
+      monthlyRoomAlerts: counts["Monthly Room"],
+      familyRoomAlerts: counts["Family Room"],
+      totalRentalAlerts: counts.total,
+      staffAttendanceLogs: attendanceLogs.length,
+      messageLogs: messageLogs.length,
+    }),
+    [attendanceLogs.length, counts, messageLogs.length],
+  );
+
   const saveDeviceStateToDatabase = async (nextState: MockDeviceState) => {
     try {
       const response = await fetch("/api/device-state", {
@@ -1628,6 +1658,145 @@ export default function RentalDashboard() {
     }
   };
 
+  const handleDownloadPdfReport = async () => {
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const leftMargin = 40;
+    const rightMargin = 40;
+    const contentWidth = pageWidth - leftMargin - rightMargin;
+    const titleColor: [number, number, number] = [11, 31, 58];
+    const accentColor: [number, number, number] = [212, 175, 55];
+
+    const noRecords =
+      alerts.length === 0 && attendanceLogs.length === 0 && messageLogs.length === 0;
+
+    doc.setTextColor(...titleColor);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
+    doc.text("SKC Mansion Report", leftMargin, 48);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    doc.text(`Date Range: ${appliedFromDate} to ${appliedToDate}`, leftMargin, 72);
+
+    doc.setDrawColor(...accentColor);
+    doc.setLineWidth(1);
+    doc.line(leftMargin, 82, pageWidth - rightMargin, 82);
+
+    doc.setFontSize(13);
+    doc.setFont("helvetica", "bold");
+    doc.text("Summary", leftMargin, 104);
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    const summaryLines = [
+      `Single Room alerts count: ${reportSummary.singleRoomAlerts}`,
+      `Double Room alerts count: ${reportSummary.doubleRoomAlerts}`,
+      `Monthly Room alerts count: ${reportSummary.monthlyRoomAlerts}`,
+      `Family Room alerts count: ${reportSummary.familyRoomAlerts}`,
+      `Total rental alerts: ${reportSummary.totalRentalAlerts}`,
+      `Staff attendance logs count: ${reportSummary.staffAttendanceLogs}`,
+      `Message logs count: ${reportSummary.messageLogs}`,
+    ];
+
+    let summaryY = 122;
+    for (const line of summaryLines) {
+      doc.text(line, leftMargin, summaryY);
+      summaryY += 16;
+    }
+
+    if (noRecords) {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.text("No records for selected date range.", leftMargin, summaryY + 10);
+    }
+
+    const renderSectionTitle = (title: string) => {
+      const nextY = (doc as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? summaryY;
+      const y = Math.max(nextY + 28, summaryY + 28);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(13);
+      doc.text(title, leftMargin, y);
+      return y + 10;
+    };
+
+    const renderTable = (
+      title: string,
+      columns: string[],
+      rows: string[][],
+    ) => {
+      const startY = renderSectionTitle(title);
+      autoTable(doc, {
+        startY,
+        head: [columns],
+        body:
+          rows.length > 0
+            ? rows
+            : [
+                [
+                  {
+                    content: "No records for selected date range.",
+                    colSpan: columns.length,
+                    styles: { halign: "center", fontStyle: "italic" },
+                  } as any,
+                ],
+              ],
+        styles: {
+          fontSize: 9,
+          cellPadding: 4,
+          textColor: [11, 31, 58],
+        },
+        headStyles: {
+          fillColor: [11, 31, 58],
+          textColor: [255, 255, 255],
+          fontStyle: "bold",
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252],
+        },
+        margin: { left: leftMargin, right: rightMargin },
+        tableWidth: contentWidth,
+      });
+    };
+
+    renderTable(
+      "Room Rental Details",
+      ["Time", "Room Type", "Device User ID", "Updated By", "Message Status"],
+      alerts.map((alert) => [
+        alert.time,
+        alert.roomType,
+        String(alert.deviceUserId),
+        alert.updatedBy,
+        alert.messageStatus,
+      ]),
+    );
+
+    renderTable(
+      "Staff Attendance Details",
+      ["Time", "Worker", "Device User ID", "Status", "Source"],
+      attendanceLogs.map((log) => [
+        log.attendanceTime,
+        log.workerName,
+        String(log.deviceUserId),
+        log.status,
+        log.source,
+      ]),
+    );
+
+    renderTable(
+      "Message Logs",
+      ["Time", "Type", "Recipient", "Status"],
+      messageLogs.map((log) => [
+        formatReportDateTime(log.createdAtMs),
+        log.messageType,
+        log.recipient,
+        log.status,
+      ]),
+    );
+
+    doc.save(buildReportFileName(appliedFromDate, appliedToDate));
+  };
+
   const exportHistory = () => {
     const exportPayload = serializeAlerts(alerts);
     const blob = new Blob([JSON.stringify(exportPayload, null, 2)], {
@@ -1821,6 +1990,13 @@ export default function RentalDashboard() {
                 className="rounded-lg border border-[#0B1F3A] bg-[#0B1F3A] px-4 py-2 text-sm font-semibold text-[#FFFFFF] transition hover:bg-[#07162A]"
               >
                 Apply Filter
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadPdfReport}
+                className="rounded-lg border border-[#D4AF37]/60 bg-[#FFFFFF] px-4 py-2 text-sm font-semibold text-[#0B1F3A] transition hover:bg-[#F5E6A8]/30"
+              >
+                Download PDF Report
               </button>
             </div>
 
