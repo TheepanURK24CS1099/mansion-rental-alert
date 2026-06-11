@@ -737,10 +737,7 @@ export default function RentalDashboard() {
   const router = useRouter();
 
   const latestAlert = alerts[0];
-  const mansionName =
-    settings.mansionName.trim().length > 0
-      ? settings.mansionName
-      : DEFAULT_SETTINGS.mansionName;
+  const mansionName = "SKC Mansion Alert System";
   const caretakerName =
     settings.caretakerName.trim().length > 0
       ? settings.caretakerName
@@ -748,8 +745,7 @@ export default function RentalDashboard() {
   const ownerWhatsAppLabel = formatOwnerWhatsAppNumber(
     settings.ownerWhatsAppNumber,
   );
-  const deviceStatusLabel =
-    deviceState.status === "online" ? "Mock Online" : "Mock Offline";
+  const deviceStatusLabel = deviceState.status === "online" ? "Connected" : "Disconnected";
   const lastSyncLabel = formatDeviceSyncTime(deviceState.lastSyncAt);
   const todayLabel = TODAY_LABEL;
   const databaseModeLabel =
@@ -758,6 +754,10 @@ export default function RentalDashboard() {
       : databaseMode === "connected"
         ? "Connected"
         : "Fallback";
+
+  const whatsappModeLabel = messageLogs.some((m) => m.provider && m.provider !== "MOCK")
+    ? "Real"
+    : "Mock";
 
   const isLoadingPage =
     isLoadingAlerts ||
@@ -1438,15 +1438,19 @@ export default function RentalDashboard() {
               <div className="flex flex-wrap gap-2 text-xs font-medium">
                 <span className="inline-flex items-center gap-2 rounded-full border border-[#D4AF37]/70 bg-[#FFFFFF]/10 px-3 py-1 text-[#FFFFFF]">
                   <span className="h-1.5 w-1.5 rounded-full bg-[#D4AF37]" />
-                  Database Connected
+                  Database: {databaseModeLabel}
                 </span>
                 <span className="inline-flex items-center gap-2 rounded-full border border-[#D4AF37]/70 bg-[#FFFFFF]/10 px-3 py-1 text-[#FFFFFF]">
                   <span className="h-1.5 w-1.5 rounded-full bg-[#D4AF37]" />
-                  Mock Biometric Mode
+                  Biometric Device: {deviceStatusLabel}
                 </span>
                 <span className="inline-flex items-center gap-2 rounded-full border border-[#D4AF37]/70 bg-[#FFFFFF]/10 px-3 py-1 text-[#FFFFFF]">
                   <span className="h-1.5 w-1.5 rounded-full bg-[#D4AF37]" />
-                  WhatsApp Mock Only
+                  WhatsApp Mode: {whatsappModeLabel}
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-full border border-[#D4AF37]/70 bg-[#FFFFFF]/10 px-3 py-1 text-[#FFFFFF]">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#D4AF37]" />
+                  Owner WhatsApp: {ownerWhatsAppLabel}
                 </span>
               </div>
             </div>
@@ -1759,170 +1763,6 @@ export default function RentalDashboard() {
             </table>
           </div>
         </section>
-
-        <section className="rounded-3xl border border-[#D4AF37]/30 bg-[#FFFFFF] p-6 shadow-sm">
-          <h3 className="text-2xl font-semibold text-[#0B1F3A]">WhatsApp Message Preview</h3>
-          <p className="mt-2 text-sm text-[#64748B]">
-            Mock WhatsApp logging enabled. No real WhatsApp sent.
-          </p>
-          <pre className="mt-5 whitespace-pre-wrap rounded-2xl border border-[#D4AF37]/30 bg-[#F8FAFC] p-4 text-sm leading-6 text-[#0B1F3A]">
-            {getPreviewMessage(latestAlert)}
-          </pre>
-        </section>
-
-        <details
-          open={isDeveloperToolsOpen}
-          onToggle={(event) => setIsDeveloperToolsOpen(event.currentTarget.open)}
-          className="rounded-3xl border border-[#D4AF37]/30 bg-[#FFFFFF] p-6 shadow-sm"
-        >
-          <summary className="cursor-pointer list-none text-2xl font-semibold text-[#0B1F3A] marker:hidden">
-            Developer Testing Tools
-          </summary>
-          <p className="mt-2 text-sm text-[#64748B]">
-            Mock and legacy controls for development verification.
-          </p>
-
-          <div className="mt-5 rounded-2xl border border-[#D4AF37]/30 bg-[#F8FAFC] p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h4 className="text-lg font-semibold text-[#0B1F3A]">Mock Device Sync Panel</h4>
-                <p className="mt-1 text-sm text-[#64748B]">
-                  Simulate biometric device scans before real hardware integration.
-                </p>
-              </div>
-              <div className="rounded-2xl border border-[#D4AF37]/30 bg-[#FFFFFF] px-4 py-3 text-sm text-[#64748B]">
-                <p className="text-xs uppercase tracking-[0.25em] text-[#64748B]">Device Status</p>
-                <p className="mt-1 font-semibold text-[#0B1F3A]" data-testid="device-status-label">
-                  {deviceStatusLabel}
-                </p>
-                <p className="mt-2 text-xs text-[#64748B]">Last Sync Time</p>
-                <p className="text-sm text-[#0B1F3A]" data-testid="last-sync-label">
-                  {lastSyncLabel}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-5 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={handleDeviceToggle}
-                className="rounded-full border border-[#D4AF37]/60 bg-[#FFFFFF] px-4 py-2 text-sm font-medium text-[#0B1F3A] transition hover:bg-[#F5E6A8]/30"
-              >
-                {deviceState.status === "online" ? "Set Mock Offline" : "Set Mock Online"}
-              </button>
-              <button
-                type="button"
-                onClick={handleManualSync}
-                className="rounded-full border border-[#0B1F3A] bg-[#0B1F3A] px-4 py-2 text-sm font-semibold text-[#FFFFFF] transition hover:bg-[#07162A]"
-              >
-                Manual Sync
-              </button>
-            </div>
-
-            <div className="mt-5 grid gap-4 xl:grid-cols-[1fr_1.2fr]">
-              <div className="rounded-2xl border border-[#D4AF37]/30 bg-[#FFFFFF] p-4">
-                <h4 className="text-lg font-semibold text-[#0B1F3A]">Mapped FP ID Test Scan</h4>
-                <p className="mt-1 text-sm text-[#64748B]">
-                  Use the mapped worker finger IDs to test attendance and room rental actions.
-                </p>
-                <p className="mt-2 text-xs text-[#64748B]">
-                  In production, real biometric device sync will trigger this flow automatically. This manual input is only for testing.
-                </p>
-                <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                  <input
-                    value={mappedScanDeviceUserId}
-                    onChange={(event) => setMappedScanDeviceUserId(event.target.value)}
-                    placeholder="Device User ID"
-                    data-testid="mapped-scan-input"
-                    className="flex-1 rounded-2xl border border-[#D4AF37]/30 bg-[#FFFFFF] px-4 py-3 text-[#0B1F3A] outline-none transition placeholder:text-[#64748B] focus:border-[#0B1F3A] focus:ring-2 focus:ring-[#0B1F3A]/20"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleMappedFingerprintScan}
-                    data-testid="mapped-scan-button"
-                    className="rounded-full border border-[#0B1F3A] bg-[#0B1F3A] px-4 py-3 text-sm font-semibold text-[#FFFFFF] transition hover:bg-[#07162A]"
-                  >
-                    Simulate Mapped Fingerprint Scan
-                  </button>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-[#D4AF37]/30 bg-[#FFFFFF] p-4">
-                <h4 className="text-lg font-semibold text-[#0B1F3A]">Legacy Quick Mock Buttons</h4>
-                <p className="mt-1 text-sm text-[#64748B]">
-                  These are only for development testing. The correct real-device flow is Workers page FP mapping + Mapped FP ID scan.
-                </p>
-                <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  {DEVICE_SCAN_ACTIONS.map((scanAction) => (
-                    <button
-                      key={scanAction.deviceUserId}
-                      type="button"
-                      onClick={() => handleDeviceScan(scanAction.deviceUserId)}
-                      className="rounded-2xl border border-[#D4AF37]/30 bg-[#F8FAFC] px-4 py-4 text-left text-sm text-[#0B1F3A] transition hover:bg-[#F5E6A8]/20"
-                    >
-                      {scanAction.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <section className="mt-5 rounded-2xl border border-[#D4AF37]/30 bg-[#F8FAFC] p-4">
-            <h4 className="text-lg font-semibold text-[#0B1F3A]">Legacy Room Action Test Buttons</h4>
-            <p className="mt-1 text-sm text-[#64748B]">
-              Legacy room action shortcuts for mock rental alert generation.
-            </p>
-            <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              {ROOM_ACTIONS.map((action) => (
-                <button
-                  key={action.deviceUserId}
-                  type="button"
-                  onClick={() => handleRoomAction(action)}
-                  className="group rounded-2xl border border-[#D4AF37]/30 bg-[#FFFFFF] p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:bg-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-[#0B1F3A]/30"
-                >
-                  <div className="h-1.5 w-14 rounded-full bg-[#D4AF37]" />
-                  <div className="mt-3 flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.25em] text-[#64748B]">Legacy Action</p>
-                      <h4 className="mt-2 text-base font-semibold text-[#0B1F3A]">{action.actionLabel}</h4>
-                    </div>
-                    <div className="rounded-xl border border-[#D4AF37]/30 bg-[#F8FAFC] px-2 py-1 text-right text-xs text-[#64748B]">
-                      Device ID
-                      <div className="text-sm font-semibold text-[#0B1F3A]">{action.deviceUserId}</div>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <div className="mt-5 rounded-2xl border border-[#D4AF37]/30 bg-[#F8FAFC] p-4 text-sm text-[#0B1F3A]">
-            <p className="font-medium">Device User ID Mapping</p>
-            <p className="mt-2">101 = Single Room</p>
-            <p>102 = Double Room</p>
-            <p>103 = Monthly Room</p>
-            <p>104 = Family Room</p>
-          </div>
-
-          <section className="mt-5 rounded-2xl border border-[#D4AF37]/30 bg-[#F8FAFC] p-4">
-            <h4 className="text-lg font-semibold text-[#0B1F3A]">Legacy Finger Mapping Reference</h4>
-            <div className="mt-4 space-y-2 text-sm text-[#0B1F3A]">
-              <div className="rounded-xl border border-[#D4AF37]/30 bg-[#FFFFFF] px-4 py-3">
-                Thumb → Device User ID 101 → Single Room Rented
-              </div>
-              <div className="rounded-xl border border-[#D4AF37]/30 bg-[#FFFFFF] px-4 py-3">
-                Index → Device User ID 102 → Double Room Rented
-              </div>
-              <div className="rounded-xl border border-[#D4AF37]/30 bg-[#FFFFFF] px-4 py-3">
-                Middle → Device User ID 103 → Monthly Room Rented
-              </div>
-              <div className="rounded-xl border border-[#D4AF37]/30 bg-[#FFFFFF] px-4 py-3">
-                Ring → Device User ID 104 → Family Room Rented
-              </div>
-            </div>
-          </section>
-        </details>
       </div>
     </main>
   );
