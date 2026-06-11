@@ -19,6 +19,7 @@ import {
   setDeviceState as persistFallbackDeviceState,
   type MockDeviceState,
 } from "@/lib/deviceStore";
+import { getMansionDutyStatus } from "@/lib/mansionDutyStatus";
 
 type RoomType =
   | "Single Room"
@@ -114,6 +115,7 @@ interface WorkerAttendanceRecord {
   attendanceTime: string;
   source: string;
   workerName: string;
+  createdAtMs: number;
 }
 
 interface MessageLogApiRecord {
@@ -701,9 +703,25 @@ function parseWorkerAttendanceApiResponse(body: unknown): WorkerAttendanceRecord
         attendanceTime: item.attendanceTime,
         source: item.source,
         workerName: item.worker.name,
+        createdAtMs: Number.isFinite(new Date(item.createdAt).getTime())
+          ? new Date(item.createdAt).getTime()
+          : 0,
       },
     ];
   });
+}
+
+function getAttendanceScanTime(log: WorkerAttendanceRecord): Date {
+  if (Number.isFinite(log.createdAtMs) && log.createdAtMs > 0) {
+    return new Date(log.createdAtMs);
+  }
+
+  const fallback = new Date(`${log.attendanceDate} ${log.attendanceTime}`);
+  return Number.isNaN(fallback.getTime()) ? new Date() : fallback;
+}
+
+function getAttendanceDutyStatus(log: WorkerAttendanceRecord): string {
+  return getMansionDutyStatus(log.workerName, getAttendanceScanTime(log));
 }
 
 function isMessageLogApiRecord(value: unknown): value is MessageLogApiRecord {
@@ -1229,15 +1247,9 @@ export default function RentalDashboard() {
   }, []);
 
   const counts = useMemo(() => {
-    return ROOM_ACTIONS.reduce(
+    const normalizedCounts = ROOM_ACTIONS.reduce(
       (summary, action) => {
-        summary[action.roomType] = alerts.filter(
-          (alert) =>
-            alert.roomType === action.roomType &&
-            alert.alertDate >= appliedFromDate &&
-            alert.alertDate <= appliedToDate,
-        ).length;
-        summary.total += summary[action.roomType];
+        summary[action.roomType] = 0;
         return summary;
       },
       {
@@ -1248,7 +1260,33 @@ export default function RentalDashboard() {
         total: 0,
       } as Record<RoomType | "total", number>,
     );
-  }, [alerts, appliedFromDate, appliedToDate]);
+
+    const normalizedTypes = new Map<string, RoomType>(
+      ROOM_ACTIONS.map((action) => [action.roomType.toLowerCase(), action.roomType]),
+    );
+
+    for (const alert of alerts) {
+      normalizedCounts.total += 1;
+
+      const roomTypeKey = alert.roomType.trim().toLowerCase();
+      const normalizedRoomType = normalizedTypes.get(roomTypeKey);
+
+      if (normalizedRoomType) {
+        normalizedCounts[normalizedRoomType] += 1;
+      }
+    }
+
+    return normalizedCounts;
+  }, [alerts]);
+
+  const attendanceLogsWithDutyStatus = useMemo(
+    () =>
+      attendanceLogs.map((log) => ({
+        ...log,
+        dutyStatus: getAttendanceDutyStatus(log),
+      })),
+    [attendanceLogs],
+  );
 
   const reportSummary = useMemo(
     () => ({
@@ -1773,12 +1811,13 @@ export default function RentalDashboard() {
 
     renderTable(
       "Staff Attendance Details",
-      ["Time", "Worker", "Device User ID", "Status", "Source"],
-      attendanceLogs.map((log) => [
+      ["Time", "Worker", "Device User ID", "Status", "Duty Status", "Source"],
+      attendanceLogsWithDutyStatus.map((log) => [
         log.attendanceTime,
         log.workerName,
         String(log.deviceUserId),
         log.status,
+        log.dutyStatus,
         log.source,
       ]),
     );
@@ -2134,17 +2173,19 @@ export default function RentalDashboard() {
                   <th className="pb-3 pr-4 font-medium">Worker</th>
                   <th className="pb-3 pr-4 font-medium">Device User ID</th>
                   <th className="pb-3 pr-4 font-medium">Status</th>
+                  <th className="pb-3 pr-4 font-medium">Duty Status</th>
                   <th className="pb-3 font-medium">Source</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F1F5F9] text-[#0B1F3A]">
-                {attendanceLogs.length > 0 ? (
-                  attendanceLogs.map((log) => (
+                {attendanceLogsWithDutyStatus.length > 0 ? (
+                  attendanceLogsWithDutyStatus.map((log) => (
                     <tr key={log.id} className="align-top">
                       <td className="py-4 pr-4 font-medium">{log.attendanceTime}</td>
                       <td className="py-4 pr-4">{log.workerName}</td>
                       <td className="py-4 pr-4">{log.deviceUserId}</td>
                       <td className="py-4 pr-4">{log.status}</td>
+                      <td className="py-4 pr-4">{log.dutyStatus}</td>
                       <td className="py-4">{log.source}</td>
                     </tr>
                   ))
