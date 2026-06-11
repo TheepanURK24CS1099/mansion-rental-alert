@@ -14,13 +14,41 @@ function parseLimit(searchParams: URLSearchParams): number {
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const limit = parseLimit(url.searchParams);
+  const fromDate = url.searchParams.get("from");
+  const toDate = url.searchParams.get("to");
 
-  const logs = await prisma.messageLog.findMany({
-    orderBy: { createdAt: "desc" },
-    take: limit,
-  });
+  const where: {
+    createdAt?: {
+      gte?: Date;
+      lte?: Date;
+    };
+  } = {};
 
-  return NextResponse.json({ success: true, data: logs });
+  if (fromDate && /^\d{4}-\d{2}-\d{2}$/.test(fromDate)) {
+    where.createdAt = where.createdAt || {};
+    where.createdAt.gte = new Date(`${fromDate}T00:00:00Z`);
+  }
+
+  if (toDate && /^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
+    where.createdAt = where.createdAt || {};
+    where.createdAt.lte = new Date(`${toDate}T23:59:59Z`);
+  }
+
+  try {
+    const logs = await prisma.messageLog.findMany({
+      where: Object.keys(where).length > 0 ? where : undefined,
+      orderBy: { createdAt: "desc" },
+      take: limit,
+    });
+
+    return NextResponse.json({ success: true, data: logs });
+  } catch (error) {
+    console.error("GET /api/message-logs error:", error);
+    return NextResponse.json(
+      { success: false, error: "Failed to fetch message logs" },
+      { status: 500 },
+    );
+  }
 }
 
 export async function DELETE() {

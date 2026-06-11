@@ -87,12 +87,42 @@ function parseAlertPayload(body: unknown):
   };
 }
 
-export async function GET() {
-  const alerts = await prisma.rentalAlert.findMany({
-    orderBy: { createdAt: "desc" },
-  });
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const fromDate = searchParams.get("from");
+    const toDate = searchParams.get("to");
 
-  return NextResponse.json({ success: true, data: alerts });
+    const where: {
+      createdAt?: {
+        gte?: Date;
+        lte?: Date;
+      };
+    } = {};
+
+    if (fromDate && /^\d{4}-\d{2}-\d{2}$/.test(fromDate)) {
+      where.createdAt = where.createdAt || {};
+      where.createdAt.gte = new Date(`${fromDate}T00:00:00Z`);
+    }
+
+    if (toDate && /^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
+      where.createdAt = where.createdAt || {};
+      where.createdAt.lte = new Date(`${toDate}T23:59:59Z`);
+    }
+
+    const alerts = await prisma.rentalAlert.findMany({
+      where: Object.keys(where).length > 0 ? where : undefined,
+      orderBy: { createdAt: "desc" },
+    });
+
+    return NextResponse.json({ success: true, data: alerts });
+  } catch (error) {
+    console.error("GET /api/rental-alerts error:", error);
+    return NextResponse.json(
+      { success: false, error: "Failed to fetch rental alerts" },
+      { status: 500 },
+    );
+  }
 }
 
 export async function POST(request: Request) {

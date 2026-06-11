@@ -454,6 +454,52 @@ function formatDateParts(timestamp: number): { date: string; time: string } {
   };
 }
 
+function formatDateInputValue(timestamp: number): string {
+  const dateObject = new Date(timestamp);
+  const year = dateObject.getFullYear();
+  const month = String(dateObject.getMonth() + 1).padStart(2, "0");
+  const day = String(dateObject.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function getTodayDateInputValue(): string {
+  return formatDateInputValue(Date.now());
+}
+
+function getThisMonthStartDateInputValue(): string {
+  const now = new Date();
+  return formatDateInputValue(new Date(now.getFullYear(), now.getMonth(), 1).getTime());
+}
+
+function buildDateRangeQuery(params: {
+  fromDate: string;
+  toDate: string;
+  extra?: Record<string, string | number | undefined>;
+}): string {
+  const searchParams = new URLSearchParams();
+
+  if (params.fromDate.trim().length > 0) {
+    searchParams.set("from", params.fromDate);
+  }
+
+  if (params.toDate.trim().length > 0) {
+    searchParams.set("to", params.toDate);
+  }
+
+  for (const [key, value] of Object.entries(params.extra ?? {})) {
+    if (value === undefined) {
+      continue;
+    }
+
+    searchParams.set(key, String(value));
+  }
+
+  const query = searchParams.toString();
+
+  return query.length > 0 ? `?${query}` : "";
+}
+
 function createAlertRecord(
   action: RoomAction,
   caretakerName: string,
@@ -731,6 +777,11 @@ export default function RentalDashboard() {
   const [isLoadingAttendance, setIsLoadingAttendance] = useState(true);
   const [messageLogs, setMessageLogs] = useState<MessageLogRecord[]>([]);
   const [isLoadingMessageLogs, setIsLoadingMessageLogs] = useState(true);
+  const [draftFromDate, setDraftFromDate] = useState(getTodayDateInputValue());
+  const [draftToDate, setDraftToDate] = useState(getTodayDateInputValue());
+  const [appliedFromDate, setAppliedFromDate] = useState(getTodayDateInputValue());
+  const [appliedToDate, setAppliedToDate] = useState(getTodayDateInputValue());
+  const [hasLoadedDashboardData, setHasLoadedDashboardData] = useState(false);
   const alerts = useSyncExternalStore(
     subscribeToRentalAlertStore,
     getRentalAlertSnapshot,
@@ -770,88 +821,169 @@ export default function RentalDashboard() {
     : "Mock";
 
   const isLoadingPage =
-    isLoadingAlerts ||
-    isLoadingSettings ||
-    isLoadingDeviceState ||
-    isLoadingAttendance ||
-    isLoadingMessageLogs;
+    !hasLoadedDashboardData &&
+    (isLoadingAlerts ||
+      isLoadingSettings ||
+      isLoadingDeviceState ||
+      isLoadingAttendance ||
+      isLoadingMessageLogs);
 
-  const reloadRentalAlerts = useCallback(async (): Promise<RentalAlertRecord[]> => {
-    const response = await fetch("/api/rental-alerts", {
-      cache: "no-store",
-    });
+  const reloadRentalAlerts = useCallback(
+    async (fromDate: string, toDate: string): Promise<RentalAlertRecord[]> => {
+      const response = await fetch(
+        `/api/rental-alerts${buildDateRangeQuery({ fromDate, toDate })}`,
+        {
+          cache: "no-store",
+        },
+      );
 
-    if (!response.ok) {
-      throw new Error(`GET /api/rental-alerts failed (${response.status})`);
-    }
+      if (!response.ok) {
+        throw new Error(`GET /api/rental-alerts failed (${response.status})`);
+      }
 
-    const body: unknown = await response.json();
-    return parseRentalAlertApiResponse(body);
-  }, []);
+      const body: unknown = await response.json();
+      return parseRentalAlertApiResponse(body);
+    },
+    [],
+  );
 
-  const reloadWorkerAttendance = useCallback(async (): Promise<WorkerAttendanceRecord[]> => {
-    const response = await fetch("/api/worker-attendance", {
-      cache: "no-store",
-    });
+  const reloadWorkerAttendance = useCallback(
+    async (fromDate: string, toDate: string): Promise<WorkerAttendanceRecord[]> => {
+      const response = await fetch(
+        `/api/worker-attendance${buildDateRangeQuery({ fromDate, toDate })}`,
+        {
+          cache: "no-store",
+        },
+      );
 
-    if (!response.ok) {
-      throw new Error(`GET /api/worker-attendance failed (${response.status})`);
-    }
+      if (!response.ok) {
+        throw new Error(`GET /api/worker-attendance failed (${response.status})`);
+      }
 
-    const body: unknown = await response.json();
-    return parseWorkerAttendanceApiResponse(body);
-  }, []);
+      const body: unknown = await response.json();
+      return parseWorkerAttendanceApiResponse(body);
+    },
+    [],
+  );
 
-  const reloadMessageLogs = useCallback(async (): Promise<MessageLogRecord[]> => {
-    const response = await fetch("/api/message-logs?limit=20", {
-      cache: "no-store",
-    });
+  const reloadMessageLogs = useCallback(
+    async (fromDate: string, toDate: string): Promise<MessageLogRecord[]> => {
+      const response = await fetch(
+        `/api/message-logs${buildDateRangeQuery({ fromDate, toDate, extra: { limit: 50 } })}`,
+        {
+          cache: "no-store",
+        },
+      );
 
-    if (!response.ok) {
-      throw new Error(`GET /api/message-logs failed (${response.status})`);
-    }
+      if (!response.ok) {
+        throw new Error(`GET /api/message-logs failed (${response.status})`);
+      }
 
-    const body: unknown = await response.json();
-    return parseMessageLogsApiResponse(body);
-  }, []);
+      const body: unknown = await response.json();
+      return parseMessageLogsApiResponse(body);
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
 
-    async function loadRentalAlerts() {
-      try {
-        const loadedAlerts = await reloadRentalAlerts();
+    if (!hasLoadedDashboardData) {
+      setIsLoadingAlerts(true);
+      setIsLoadingAttendance(true);
+      setIsLoadingMessageLogs(true);
+    }
 
-        if (cancelled) {
-          return;
+    async function loadDashboardData() {
+      const loadRentalAlerts = async () => {
+        try {
+          const loadedAlerts = await reloadRentalAlerts(appliedFromDate, appliedToDate);
+
+          if (cancelled) {
+            return;
+          }
+
+          replaceRentalAlertStore(loadedAlerts);
+          setDatabaseMode("connected");
+          setDatabaseNotice(null);
+        } catch {
+          const fallbackAlerts = readStoredAlerts();
+
+          if (cancelled) {
+            return;
+          }
+
+          replaceRentalAlertStore(fallbackAlerts, { persist: true });
+          setDatabaseMode("fallback");
+          setDatabaseNotice("Database unavailable. Showing local fallback history.");
+        } finally {
+          if (!cancelled) {
+            setIsLoadingAlerts(false);
+          }
         }
+      };
 
-        replaceRentalAlertStore(loadedAlerts);
-        setDatabaseMode("connected");
-        setDatabaseNotice(null);
-      } catch {
-        const fallbackAlerts = readStoredAlerts();
+      const loadAttendanceLogs = async () => {
+        try {
+          const loadedAttendance = await reloadWorkerAttendance(appliedFromDate, appliedToDate);
 
-        if (cancelled) {
-          return;
+          if (cancelled) {
+            return;
+          }
+
+          setAttendanceLogs(loadedAttendance);
+          setAttendanceNotice(null);
+        } catch {
+          if (cancelled) {
+            return;
+          }
+
+          setAttendanceLogs([]);
+          setAttendanceNotice("Database unavailable. Attendance history fallback is active.");
+        } finally {
+          if (!cancelled) {
+            setIsLoadingAttendance(false);
+          }
         }
+      };
 
-        replaceRentalAlertStore(fallbackAlerts, { persist: true });
-        setDatabaseMode("fallback");
-        setDatabaseNotice("Database unavailable. Showing local fallback history.");
-      } finally {
-        if (!cancelled) {
-          setIsLoadingAlerts(false);
+      const loadLogs = async () => {
+        try {
+          const loadedMessageLogs = await reloadMessageLogs(appliedFromDate, appliedToDate);
+
+          if (cancelled) {
+            return;
+          }
+
+          setMessageLogs(loadedMessageLogs);
+          setMessageLogsNotice(null);
+        } catch {
+          if (cancelled) {
+            return;
+          }
+
+          setMessageLogs([]);
+          setMessageLogsNotice("Message logs unavailable. Showing empty state.");
+        } finally {
+          if (!cancelled) {
+            setIsLoadingMessageLogs(false);
+          }
         }
+      };
+
+      await Promise.all([loadRentalAlerts(), loadAttendanceLogs(), loadLogs()]);
+
+      if (!cancelled && !hasLoadedDashboardData) {
+        setHasLoadedDashboardData(true);
       }
     }
 
-    void loadRentalAlerts();
+    void loadDashboardData();
 
     return () => {
       cancelled = true;
     };
-  }, [reloadRentalAlerts]);
+  }, [appliedFromDate, appliedToDate, hasLoadedDashboardData, reloadMessageLogs, reloadRentalAlerts, reloadWorkerAttendance]);
 
   useEffect(() => {
     let cancelled = false;
@@ -946,7 +1078,7 @@ export default function RentalDashboard() {
 
     async function loadAttendanceLogs() {
       try {
-        const loadedAttendance = await reloadWorkerAttendance();
+        const loadedAttendance = await reloadWorkerAttendance(appliedFromDate, appliedToDate);
 
         if (cancelled) {
           return;
@@ -980,7 +1112,7 @@ export default function RentalDashboard() {
 
     async function loadMessageLogs() {
       try {
-        const loadedMessageLogs = await reloadMessageLogs();
+        const loadedMessageLogs = await reloadMessageLogs(appliedFromDate, appliedToDate);
 
         if (cancelled) {
           return;
@@ -1084,7 +1216,9 @@ export default function RentalDashboard() {
       (summary, action) => {
         summary[action.roomType] = alerts.filter(
           (alert) =>
-            alert.roomType === action.roomType && alert.alertDate === todayLabel,
+            alert.roomType === action.roomType &&
+            alert.alertDate >= appliedFromDate &&
+            alert.alertDate <= appliedToDate,
         ).length;
         summary.total += summary[action.roomType];
         return summary;
@@ -1097,7 +1231,7 @@ export default function RentalDashboard() {
         total: 0,
       } as Record<RoomType | "total", number>,
     );
-  }, [alerts, todayLabel]);
+  }, [alerts, appliedFromDate, appliedToDate]);
 
   const saveDeviceStateToDatabase = async (nextState: MockDeviceState) => {
     try {
@@ -1176,7 +1310,7 @@ export default function RentalDashboard() {
       setDatabaseMode("connected");
       setDatabaseNotice(null);
       setWarning(null);
-      void reloadMessageLogs()
+      void reloadMessageLogs(appliedFromDate, appliedToDate)
         .then((loadedMessageLogs) => {
           setMessageLogs(loadedMessageLogs);
           setMessageLogsNotice(null);
@@ -1220,7 +1354,7 @@ export default function RentalDashboard() {
         );
       }
 
-      const refreshedAlerts = await reloadRentalAlerts().catch(() => []);
+      const refreshedAlerts = await reloadRentalAlerts(appliedFromDate, appliedToDate).catch(() => []);
       replaceRentalAlertStore(refreshedAlerts);
       setDatabaseMode("connected");
       setDatabaseNotice("Database rental alert history cleared.");
@@ -1298,7 +1432,7 @@ export default function RentalDashboard() {
   };
 
   const handleRefreshMessageLogs = () => {
-    void reloadMessageLogs()
+    void reloadMessageLogs(appliedFromDate, appliedToDate)
       .then((loadedMessageLogs) => {
         setMessageLogs(loadedMessageLogs);
         setMessageLogsNotice(null);
@@ -1338,7 +1472,7 @@ export default function RentalDashboard() {
         );
       }
 
-      const refreshedAttendance = await reloadWorkerAttendance().catch(() => []);
+      const refreshedAttendance = await reloadWorkerAttendance(appliedFromDate, appliedToDate).catch(() => []);
       setAttendanceLogs(refreshedAttendance);
       setAttendanceNotice("Staff attendance logs cleared.");
     } catch {
@@ -1438,9 +1572,9 @@ export default function RentalDashboard() {
           `Attendance marked: ${String(result.workerName ?? "Worker")} ${String(result.status ?? "IN")}`,
         );
         setMappedScanDeviceUserId("");
-        const refreshedAttendance = await reloadWorkerAttendance().catch(() => []);
+        const refreshedAttendance = await reloadWorkerAttendance(appliedFromDate, appliedToDate).catch(() => []);
         setAttendanceLogs(refreshedAttendance);
-        const refreshedMessageLogs = await reloadMessageLogs().catch(() => []);
+        const refreshedMessageLogs = await reloadMessageLogs(appliedFromDate, appliedToDate).catch(() => []);
         setMessageLogs(refreshedMessageLogs);
         return;
       }
@@ -1451,9 +1585,9 @@ export default function RentalDashboard() {
           `Rental alert created: ${String(result.roomType ?? "Room")} by ${String(result.workerName ?? "Worker")}`,
         );
         setMappedScanDeviceUserId("");
-        const refreshedAlerts = await reloadRentalAlerts().catch(() => []);
+        const refreshedAlerts = await reloadRentalAlerts(appliedFromDate, appliedToDate).catch(() => []);
         replaceRentalAlertStore(refreshedAlerts);
-        const refreshedMessageLogs = await reloadMessageLogs().catch(() => []);
+        const refreshedMessageLogs = await reloadMessageLogs(appliedFromDate, appliedToDate).catch(() => []);
         setMessageLogs(refreshedMessageLogs);
         return;
       }
@@ -1461,6 +1595,37 @@ export default function RentalDashboard() {
 
     setActivityMessage(null);
     setWarning("Unable to process mock scan.");
+  };
+
+  const handleSetToday = () => {
+    const todayDate = getTodayDateInputValue();
+    setDraftFromDate(todayDate);
+    setDraftToDate(todayDate);
+  };
+
+  const handleSetThisMonth = () => {
+    setDraftFromDate(getThisMonthStartDateInputValue());
+    setDraftToDate(getTodayDateInputValue());
+  };
+
+  const handleApplyDateFilter = async () => {
+    setAppliedFromDate(draftFromDate);
+    setAppliedToDate(draftToDate);
+    setActivityMessage(null);
+    setWarning(null);
+
+    try {
+      const refreshedAlerts = await reloadRentalAlerts(draftFromDate, draftToDate).catch(() => []);
+      replaceRentalAlertStore(refreshedAlerts);
+
+      const refreshedAttendance = await reloadWorkerAttendance(draftFromDate, draftToDate).catch(() => []);
+      setAttendanceLogs(refreshedAttendance);
+
+      const refreshedMessageLogs = await reloadMessageLogs(draftFromDate, draftToDate).catch(() => []);
+      setMessageLogs(refreshedMessageLogs);
+    } catch (err) {
+      setWarning(`Error applying date filter: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
   };
 
   const exportHistory = () => {
@@ -1601,25 +1766,89 @@ export default function RentalDashboard() {
           ) : null}
         </section>
 
+        <section className="rounded-3xl border border-[#D4AF37]/30 bg-[#FFFFFF] p-6 shadow-sm">
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold text-[#0B1F3A]">Date Range Filter</h3>
+              <p className="mt-1 text-sm text-[#64748B]">Filter rental alerts, attendance logs, and messages by date</p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="from-date" className="block text-sm font-medium text-[#0B1F3A]">
+                  From Date
+                </label>
+                <input
+                  id="from-date"
+                  type="date"
+                  value={draftFromDate}
+                  onChange={(e) => setDraftFromDate(e.target.value)}
+                  className="mt-2 w-full rounded-lg border border-[#D4AF37]/60 bg-[#F8FAFC] px-3 py-2 text-sm text-[#0B1F3A] transition focus:border-[#D4AF37] focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/20"
+                />
+              </div>
+              <div>
+                <label htmlFor="to-date" className="block text-sm font-medium text-[#0B1F3A]">
+                  To Date
+                </label>
+                <input
+                  id="to-date"
+                  type="date"
+                  value={draftToDate}
+                  onChange={(e) => setDraftToDate(e.target.value)}
+                  className="mt-2 w-full rounded-lg border border-[#D4AF37]/60 bg-[#F8FAFC] px-3 py-2 text-sm text-[#0B1F3A] transition focus:border-[#D4AF37] focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/20"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={handleSetToday}
+                className="rounded-lg border border-[#D4AF37]/60 bg-[#F8FAFC] px-4 py-2 text-sm font-medium text-[#0B1F3A] transition hover:bg-[#F5E6A8]/30"
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                onClick={handleSetThisMonth}
+                className="rounded-lg border border-[#D4AF37]/60 bg-[#F8FAFC] px-4 py-2 text-sm font-medium text-[#0B1F3A] transition hover:bg-[#F5E6A8]/30"
+              >
+                This Month
+              </button>
+              <button
+                type="button"
+                onClick={handleApplyDateFilter}
+                className="rounded-lg border border-[#0B1F3A] bg-[#0B1F3A] px-4 py-2 text-sm font-semibold text-[#FFFFFF] transition hover:bg-[#07162A]"
+              >
+                Apply Filter
+              </button>
+            </div>
+
+            <div className="rounded-lg border border-[#D4AF37]/40 bg-[#F5E6A8]/10 px-3 py-2 text-xs text-[#0B1F3A]">
+              <span className="font-medium">Applied Range:</span> {appliedFromDate} to {appliedToDate}
+            </div>
+          </div>
+        </section>
+
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           {ROOM_ACTIONS.map((action) => (
             <article
               key={action.roomType}
               className="rounded-3xl border border-[#D4AF37]/30 bg-[#FFFFFF] p-5 shadow-sm"
             >
-              <p className="text-sm text-[#64748B]">Today Overview</p>
+              <p className="text-sm text-[#64748B]">{appliedFromDate === appliedToDate ? 'Single Day' : 'Date Range'} View</p>
               <h3 className="mt-2 text-xl font-semibold text-[#0B1F3A]">{action.roomType}</h3>
               <div className="mt-4 flex items-end justify-between">
                 <span className="text-4xl font-bold text-[#0B1F3A]">{counts[action.roomType]}</span>
                 <span className="rounded-full border border-[#D4AF37]/40 bg-[#F5E6A8]/30 px-3 py-1 text-xs text-[#0B1F3A]">
-                  alerts today
+                  {appliedFromDate === appliedToDate ? 'alerts' : 'in range'}
                 </span>
               </div>
             </article>
           ))}
 
           <article className="rounded-3xl border border-[#D4AF37]/60 bg-[#FFFFFF] p-5 shadow-sm xl:col-span-1">
-            <p className="text-sm text-[#64748B]">Today Overview</p>
+            <p className="text-sm text-[#64748B]">{appliedFromDate === appliedToDate ? 'Single Day' : 'Date Range'} View</p>
             <h3 className="mt-2 text-xl font-semibold text-[#0B1F3A]">Total Alerts</h3>
             <div className="mt-4 flex items-end justify-between">
               <span className="text-4xl font-bold text-[#0B1F3A]" data-testid="total-alerts-count">
