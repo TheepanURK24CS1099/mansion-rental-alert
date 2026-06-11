@@ -57,15 +57,11 @@ export default function LoginPage() {
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md items-center">
         <section className="w-full rounded-3xl border border-[#D4AF37]/35 bg-[#FFFFFF] p-6 shadow-sm sm:p-8">
           <div className="space-y-3 text-center">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#D4AF37]/60 bg-[#F5E6A8]/35 px-3 py-1 text-xs font-medium text-[#0B1F3A]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#D4AF37]" />
-              Local secure login mode
-            </div>
             <h1 className="text-3xl font-semibold tracking-tight text-[#0B1F3A]">
               SKC Mansion Alert System
             </h1>
             <p className="text-sm text-[#64748B]">
-              Secure owner login for room rental and staff attendance monitoring.
+              Owner login for room rental and staff attendance monitoring.
             </p>
           </div>
 
