@@ -158,11 +158,6 @@ export default function WorkersPage() {
     };
   }, []);
 
-  const activeWorkerCount = useMemo(
-    () => workers.filter((worker) => worker.isActive).length,
-    [workers],
-  );
-
   const resetForm = () => {
     setForm(EMPTY_FORM);
     setEditingWorkerId(null);
@@ -306,15 +301,11 @@ export default function WorkersPage() {
         <section className="rounded-3xl border border-[#D4AF37]/35 bg-gradient-to-r from-[#07162A] to-[#0B1F3A] p-6 shadow-xl xl:p-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-[#D4AF37]/65 bg-[#FFFFFF]/10 px-3 py-1 text-xs font-medium text-[#FFFFFF]">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#D4AF37]" />
-                Map biometric Device User IDs to workers and actions.
-              </div>
-              <h1 className="mt-4 text-3xl font-semibold tracking-tight text-[#FFFFFF]">
-                Worker & Finger Mapping
+              <h1 className="text-3xl font-semibold tracking-tight text-[#FFFFFF]">
+                Workers
               </h1>
               <p className="mt-2 text-sm text-[#F5E6A8]">
-                Map each person’s biometric Device User IDs to attendance and room rental actions.
+                Add and manage staff fingerprint IDs
               </p>
             </div>
             <nav className="flex flex-wrap gap-3">
@@ -359,14 +350,6 @@ export default function WorkersPage() {
               {error}
             </div>
           ) : null}
-          <div className="mt-4 rounded-2xl border border-[#D4AF37]/40 bg-[#FFFFFF]/10 px-4 py-3 text-sm text-[#FFFFFF]">
-            <p className="font-medium text-[#FFFFFF]">Example mappings</p>
-            <p className="mt-1">Attendance + Room Rental: Ravi (201–205), Kumar (211–215), Mani (221–225)</p>
-            <p>Room Rental Only: Manager (301–304)</p>
-            <p className="mt-1 text-xs text-[#F5E6A8]">
-              Total active workers: {activeWorkerCount} / {workers.length}
-            </p>
-          </div>
         </section>
 
         <section className="rounded-3xl border border-[#D4AF37]/35 bg-[#FFFFFF] p-6 shadow-sm">
@@ -412,7 +395,7 @@ export default function WorkersPage() {
 
             {form.personType === "ATTENDANCE_AND_ROOM" ? (
               <label className="grid gap-2 text-sm text-[#0B1F3A] xl:col-span-2">
-                <span>Attendance Device User ID</span>
+                <span>Attendance Device ID</span>
                 <input
                   value={form.attendanceDeviceUserId}
                   onChange={(event) =>
@@ -502,11 +485,11 @@ export default function WorkersPage() {
                   <th className="pb-3 pr-4 font-medium">Person Name</th>
                   <th className="pb-3 pr-4 font-medium">Phone</th>
                   <th className="pb-3 pr-4 font-medium">Person Type</th>
-                  <th className="pb-3 pr-4 font-medium">Attendance FP ID</th>
-                  <th className="pb-3 pr-4 font-medium">Single Room FP ID</th>
-                  <th className="pb-3 pr-4 font-medium">Double Room FP ID</th>
-                  <th className="pb-3 pr-4 font-medium">Monthly Room FP ID</th>
-                  <th className="pb-3 pr-4 font-medium">Family Room FP ID</th>
+                  <th className="pb-3 pr-4 font-medium">Attendance Device ID</th>
+                  <th className="pb-3 pr-4 font-medium">Single Room Device ID</th>
+                  <th className="pb-3 pr-4 font-medium">Double Room Device ID</th>
+                  <th className="pb-3 pr-4 font-medium">Monthly Room Device ID</th>
+                  <th className="pb-3 pr-4 font-medium">Family Room Device ID</th>
                   <th className="pb-3 pr-4 font-medium">Status</th>
                   <th className="pb-3 font-medium">Actions</th>
                 </tr>
