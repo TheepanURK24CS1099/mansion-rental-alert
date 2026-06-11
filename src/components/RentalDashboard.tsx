@@ -721,6 +721,8 @@ export default function RentalDashboard() {
   const [deviceState, setDeviceStateState] = useState<MockDeviceState>(
     DEFAULT_DEVICE_STATE,
   );
+  const [lastHeartbeatAt, setLastHeartbeatAt] = useState<string | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [activityMessage, setActivityMessage] = useState<string | null>(null);
   const [isDeveloperToolsOpen, setIsDeveloperToolsOpen] = useState(false);
@@ -745,8 +747,16 @@ export default function RentalDashboard() {
   const ownerWhatsAppLabel = formatOwnerWhatsAppNumber(
     settings.ownerWhatsAppNumber,
   );
-  const deviceStatusLabel = deviceState.status === "online" ? "Connected" : "Disconnected";
   const lastSyncLabel = formatDeviceSyncTime(deviceState.lastSyncAt);
+
+  const isDeviceOnline = (() => {
+    if (!lastHeartbeatAt) return false;
+    const parsed = Date.parse(lastHeartbeatAt);
+    if (Number.isNaN(parsed)) return false;
+    return Date.now() - parsed <= 30_000;
+  })();
+
+  const deviceStatusLabel = isDeviceOnline ? "Connected" : "Disconnected";
   const todayLabel = TODAY_LABEL;
   const databaseModeLabel =
     databaseMode === "loading"
@@ -892,6 +902,45 @@ export default function RentalDashboard() {
     };
   }, []);
 
+  // Poll device state frequently so the UI reflects real device heartbeat quickly
+  useEffect(() => {
+    let cancelled = false;
+
+    async function pollDeviceState() {
+      try {
+        const response = await fetch('/api/device-state', { cache: 'no-store' });
+        if (!response.ok) return;
+        const body: unknown = await response.json();
+
+        try {
+          const raw = body as { data?: Record<string, unknown> };
+          if (raw && raw.data) {
+            const d = raw.data;
+            const hb = d.lastHeartbeatAt && typeof d.lastHeartbeatAt === 'string' ? d.lastHeartbeatAt : null;
+            const conn = d.connectionStatus && typeof d.connectionStatus === 'string' ? d.connectionStatus : null;
+            if (!cancelled) {
+              setLastHeartbeatAt(hb);
+              setConnectionStatus(conn);
+            }
+          }
+        } catch {
+          // ignore parse errors during polling
+        }
+      } catch {
+        // ignore network errors during polling
+      }
+    }
+
+    // initial poll and then every 5 seconds
+    void pollDeviceState();
+    const id = setInterval(() => void pollDeviceState(), 5000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -980,11 +1029,32 @@ export default function RentalDashboard() {
           throw new Error("Invalid device state response from API.");
         }
 
+        // Extract heartbeat and connectionStatus from raw API response
+        let hb: string | null = null;
+        let conn: string | null = null;
+        try {
+          const raw = body as { data?: Record<string, unknown> };
+          if (raw && raw.data) {
+            const d = raw.data;
+            if (d.lastHeartbeatAt && typeof d.lastHeartbeatAt === "string") {
+              hb = d.lastHeartbeatAt;
+            }
+            if (d.connectionStatus && typeof d.connectionStatus === "string") {
+              conn = d.connectionStatus;
+            }
+          }
+        } catch {
+          hb = null;
+          conn = null;
+        }
+
         if (cancelled) {
           return;
         }
 
         setDeviceStateState(loadedDeviceState);
+        setLastHeartbeatAt(hb);
+        setConnectionStatus(conn);
         setDeviceNotice(null);
       } catch {
         const fallbackDeviceState = getDeviceStateSnapshot();

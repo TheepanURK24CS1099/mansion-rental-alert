@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { processDeviceScan } from '@/lib/deviceScanProcessor';
+import { prisma } from '@/lib/prisma';
 
 export async function GET(
   request: NextRequest,
@@ -20,6 +21,39 @@ export async function GET(
     sn,
     timestamp,
   });
+
+  // Update device heartbeat for the known real device SN
+  try {
+    if (sn === 'NFZ8254900277') {
+      const existing = await prisma.deviceState.findFirst({ orderBy: { createdAt: 'asc' } });
+
+      if (existing) {
+        await prisma.deviceState.update({
+          where: { id: existing.id },
+          data: {
+            lastHeartbeatAt: new Date(),
+            connectionStatus: 'REAL_ONLINE',
+            status: 'online',
+          },
+        });
+      } else {
+        await prisma.deviceState.create({
+          data: {
+            lastHeartbeatAt: new Date(),
+            connectionStatus: 'REAL_ONLINE',
+            status: 'online',
+          },
+        });
+      }
+    }
+  } catch (err) {
+    console.error({
+      event: 'update_device_heartbeat_error',
+      error: err instanceof Error ? err.message : String(err),
+      sn,
+      timestamp: new Date().toISOString(),
+    });
+  }
 
   return new NextResponse('OK', { status: 200 });
 }
