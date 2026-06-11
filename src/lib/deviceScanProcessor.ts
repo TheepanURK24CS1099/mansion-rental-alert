@@ -333,9 +333,10 @@ export async function processDeviceScan(
       data: {
         roomType,
         actionLabel: `${roomType} Rented`,
+        // Use the actual scanned deviceUserId and source from the input
         deviceUserId: input.deviceUserId,
         updatedBy: mapping.worker.name,
-        source,
+        source: input.source,
         messageStatus: "Mock Sent",
         alertDate: parts.date,
         alertTime: parts.time,
@@ -371,12 +372,14 @@ export async function processDeviceScan(
     // Create DeviceScanLog with processingStatus = PROCESSED, resultType = RENTAL
     await prisma.deviceScanLog.create({
       data: {
-        deviceUserId: mapping.deviceUserId,
+        // Log the actual scanned deviceUserId and source so records reflect the
+        // real device input rather than the mapping defaults used elsewhere.
+        deviceUserId: input.deviceUserId,
         workerId: mapping.workerId,
         workerName: mapping.worker.name,
         actionType: mapping.actionType,
         scanTime: currentScanTime,
-        source,
+        source: input.source,
         processingStatus: "PROCESSED",
         resultType: "RENTAL",
         relatedRentalAlertId: rentalAlert.id,

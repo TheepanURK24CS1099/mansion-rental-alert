@@ -24,11 +24,11 @@ type RoomType =
   | "Monthly Room"
   | "Family Room";
 
-type DeviceUserId = 101 | 102 | 103 | 104;
+type DeviceUserId = number;
 
 type AlertStatus = "Mock Sent";
 
-type AlertSource = "Dashboard Button" | "Mock Device Scan";
+type AlertSource = string;
 
 type AttendanceStatus = "IN" | "OUT";
 
@@ -196,7 +196,7 @@ function isRoomType(value: string): value is RoomType {
 }
 
 function isDeviceUserId(value: number): value is DeviceUserId {
-  return value === 101 || value === 102 || value === 103 || value === 104;
+  return typeof value === "number" && Number.isInteger(value);
 }
 
 function isAlertStatus(value: string): value is AlertStatus {
@@ -204,7 +204,7 @@ function isAlertStatus(value: string): value is AlertStatus {
 }
 
 function isAlertSource(value: string): value is AlertSource {
-  return value === "Dashboard Button" || value === "Mock Device Scan";
+  return typeof value === "string" && value.trim().length > 0;
 }
 
 function isRentalAlertApiRecord(value: unknown): value is RentalAlertApiRecord {
