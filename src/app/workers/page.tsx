@@ -55,39 +55,6 @@ const EMPTY_FORM: WorkerFormState = {
   familyRoomDeviceUserId: "",
 };
 
-const REAL_WORKER_TEMPLATES = [
-  {
-    name: "Ananthi",
-    phone: "",
-    personType: "ATTENDANCE_AND_ROOM",
-    attendanceDeviceUserId: "201",
-    singleRoomDeviceUserId: "202",
-    doubleRoomDeviceUserId: "203",
-    monthlyRoomDeviceUserId: "204",
-    familyRoomDeviceUserId: "205",
-  },
-  {
-    name: "Suresh Kumar",
-    phone: "",
-    personType: "ATTENDANCE_AND_ROOM",
-    attendanceDeviceUserId: "211",
-    singleRoomDeviceUserId: "212",
-    doubleRoomDeviceUserId: "213",
-    monthlyRoomDeviceUserId: "214",
-    familyRoomDeviceUserId: "215",
-  },
-  {
-    name: "Periyaanna",
-    phone: "",
-    personType: "ATTENDANCE_AND_ROOM",
-    attendanceDeviceUserId: "221",
-    singleRoomDeviceUserId: "222",
-    doubleRoomDeviceUserId: "223",
-    monthlyRoomDeviceUserId: "224",
-    familyRoomDeviceUserId: "225",
-  },
-] satisfies ReadonlyArray<WorkerFormState>;
-
 function isWorkerRecord(value: unknown): value is WorkerRecord {
   if (typeof value !== "object" || value === null) {
     return false;
@@ -194,13 +161,6 @@ export default function WorkersPage() {
   const resetForm = () => {
     setForm(EMPTY_FORM);
     setEditingWorkerId(null);
-  };
-
-  const loadWorkerTemplate = (template: WorkerFormState) => {
-    setForm(template);
-    setEditingWorkerId(null);
-    setMessage(null);
-    setError(null);
   };
 
   const refreshWorkers = async () => {
@@ -393,38 +353,6 @@ export default function WorkersPage() {
         </section>
 
         <section className="rounded-3xl border border-[#D4AF37]/35 bg-[#FFFFFF] p-6 shadow-sm">
-          <div className="rounded-2xl border border-[#D4AF37]/35 bg-[#F8FAFC] p-4">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-[#0B1F3A]">Real worker templates</h2>
-                <p className="mt-1 text-sm text-[#64748B]">
-                  Use these presets to fill the form quickly, then save with the existing worker API.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={resetForm}
-                className="rounded-full border border-[#D4AF37]/55 bg-[#FFFFFF] px-4 py-2 text-sm font-medium text-[#0B1F3A] transition hover:bg-[#F5E6A8]/35"
-              >
-                Clear form
-              </button>
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-3">
-              {REAL_WORKER_TEMPLATES.map((template) => (
-                <button
-                  key={template.name}
-                  type="button"
-                  onClick={() => loadWorkerTemplate(template)}
-                  className="rounded-full border border-[#0B1F3A]/15 bg-[#FFFFFF] px-4 py-2 text-sm font-medium text-[#0B1F3A] transition hover:border-[#D4AF37] hover:bg-[#F5E6A8]/35"
-                >
-                  Load {template.name}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="mt-6">
           <form onSubmit={handleSubmit} className="grid gap-4 xl:grid-cols-2">
             <label className="grid gap-2 text-sm text-[#0B1F3A]">
               <span>Person Name</span>
@@ -538,7 +466,6 @@ export default function WorkersPage() {
               </button>
             </div>
           </form>
-          </div>
         </section>
 
         <section className="rounded-3xl border border-[#D4AF37]/35 bg-[#FFFFFF] p-6 shadow-sm">
