@@ -352,17 +352,6 @@ function sanitizeSettingsRecord(record: Record<string, unknown>): MansionSetting
                 />
               </label>
 
-              <label className="grid gap-2 text-sm text-[#0B1F3A]">
-                <span>Caretaker Name</span>
-                <input
-                  value={form.caretakerName}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, caretakerName: event.target.value }))
-                  }
-                  className="rounded-2xl border border-[#D4AF37]/35 bg-[#FFFFFF] px-4 py-3 text-[#0B1F3A] outline-none transition focus:border-[#0B1F3A] focus:ring-2 focus:ring-[#0B1F3A]/20"
-                />
-              </label>
-
               <div className="flex flex-wrap gap-3 pt-2">
                 <button
                   type="submit"
