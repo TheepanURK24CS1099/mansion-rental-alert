@@ -7,6 +7,11 @@ import {
   createMockRentalAlertMessageLog,
   createMockStaffAttendanceMessageLog,
 } from "@/lib/messageService";
+import {
+  formatIstDate,
+  formatTimeIST,
+  getMansionDutyStatus,
+} from "@/lib/mansionDutyStatus";
 
 // ─── Input / Output Types ────────────────────────────────────────────────────
 
@@ -21,6 +26,8 @@ export interface DeviceScanSuccessAttendance {
   type: "attendance";
   workerName: string;
   status: string;
+  dutyStatus: string;
+  scanTimeIst: string;
   attendanceId: string;
 }
 
@@ -220,6 +227,9 @@ export async function processDeviceScan(
 
       const latestAttendance = mapping.worker.attendanceLogs[0];
       const nextStatus = latestAttendance?.status === "IN" ? "OUT" : "IN";
+      const dutyStatus = getMansionDutyStatus(mapping.worker.name, currentScanTime);
+      const attendanceDateIst = formatIstDate(currentScanTime);
+      const attendanceTimeIst = formatTimeIST(currentScanTime);
 
       const attendance = await prisma.workerAttendance.create({
         data: {
@@ -233,13 +243,23 @@ export async function processDeviceScan(
       });
 
       try {
+        console.log({
+          event: "attendance_duty_status",
+          workerName: mapping.worker.name,
+          attendanceStatus: attendance.status,
+          dutyStatus,
+          scanTimeIst: attendanceTimeIst,
+          source,
+        });
+
         if (ownerWhatsAppNumber.length > 0) {
           await createMockStaffAttendanceMessageLog({
             recipient: ownerWhatsAppNumber,
             workerName: mapping.worker.name,
             status: attendance.status,
-            attendanceDate: attendance.attendanceDate,
-            attendanceTime: attendance.attendanceTime,
+            attendanceDate: attendanceDateIst,
+            attendanceTime: attendanceTimeIst,
+            dutyStatus,
             relatedAttendanceId: attendance.id,
           });
         } else {
@@ -247,8 +267,9 @@ export async function processDeviceScan(
             recipient: "Not configured",
             workerName: mapping.worker.name,
             status: attendance.status,
-            attendanceDate: attendance.attendanceDate,
-            attendanceTime: attendance.attendanceTime,
+            attendanceDate: attendanceDateIst,
+            attendanceTime: attendanceTimeIst,
+            dutyStatus,
             relatedAttendanceId: attendance.id,
             messageStatus: "FAILED",
             errorMessage: "Owner WhatsApp number not configured.",
@@ -278,6 +299,8 @@ export async function processDeviceScan(
         type: "attendance",
         workerName: mapping.worker.name,
         status: attendance.status,
+        dutyStatus,
+        scanTimeIst: attendanceTimeIst,
         attendanceId: attendance.id,
       };
     }

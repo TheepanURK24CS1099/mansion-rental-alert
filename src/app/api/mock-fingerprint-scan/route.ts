@@ -74,6 +74,8 @@ export async function POST(request: Request) {
         type: "attendance",
         status: result.status,
         workerName: result.workerName,
+        dutyStatus: result.dutyStatus,
+        scanTimeIst: result.scanTimeIst,
       });
     }
 

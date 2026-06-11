@@ -29,6 +29,7 @@ export interface StaffAttendanceMessageInput {
   status: string;
   attendanceDate: string;
   attendanceTime: string;
+  dutyStatus?: string;
 }
 
 export interface CreateMockStaffAttendanceMessageLogInput extends Omit<StaffAttendanceMessageInput, "status"> {
@@ -58,16 +59,19 @@ export function buildRentalAlertMessage(input: RentalAlertMessageInput): string 
 }
 
 export function buildStaffAttendanceMessage(input: StaffAttendanceMessageInput): string {
+  const dutyStatusLine = `Duty Status: ${input.dutyStatus ?? "Outside Scheduled Time"}`;
+
   return [
     "Dear Owner,",
     "",
     "This is an automatic staff attendance update from SKC Mansion.",
     "",
-    `Staff name: ${input.workerName}`,
-    `Attendance status: ${input.status}`,
+    `Staff: ${input.workerName}`,
+    `Time: ${input.attendanceTime}`,
+    `Attendance: ${input.status}`,
+    dutyStatusLine,
     "",
     `Attendance date: ${input.attendanceDate}`,
-    `Attendance time: ${input.attendanceTime}`,
     "",
     "This message is for your information. Please check the SKC Mansion dashboard for full attendance records.",
   ].join("\n");
@@ -204,6 +208,7 @@ async function createStaffAttendanceMessageLog(
     status: input.status,
     attendanceDate: input.attendanceDate,
     attendanceTime: input.attendanceTime,
+    dutyStatus: input.dutyStatus,
   });
 
   const templateVariables = {
@@ -211,6 +216,7 @@ async function createStaffAttendanceMessageLog(
     status: input.status,
     attendanceDate: input.attendanceDate,
     attendanceTime: input.attendanceTime,
+    dutyStatus: input.dutyStatus ?? "Outside Scheduled Time",
   };
 
   // In MOCK mode no real WhatsApp is sent.
