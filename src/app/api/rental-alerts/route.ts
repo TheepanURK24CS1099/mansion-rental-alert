@@ -181,9 +181,32 @@ export async function POST(request: Request) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(request: Request) {
   try {
-    const result = await prisma.rentalAlert.deleteMany();
+    const { searchParams } = new URL(request.url);
+    const fromDate = searchParams.get("from");
+    const toDate = searchParams.get("to");
+
+    if (
+      !fromDate ||
+      !toDate ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(fromDate) ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(toDate)
+    ) {
+      return NextResponse.json(
+        { success: false, error: "Date range is required for delete." },
+        { status: 400 },
+      );
+    }
+
+    const result = await prisma.rentalAlert.deleteMany({
+      where: {
+        createdAt: {
+          gte: new Date(`${fromDate}T00:00:00Z`),
+          lte: new Date(`${toDate}T23:59:59Z`),
+        },
+      },
+    });
 
     return NextResponse.json({
       success: true,

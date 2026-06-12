@@ -1394,8 +1394,13 @@ export default function RentalDashboard() {
   };
 
   const handleClearDatabaseHistory = async () => {
+    if (appliedFromDate.trim().length === 0 || appliedToDate.trim().length === 0) {
+      setDatabaseNotice("Date range is required for delete.");
+      return;
+    }
+
     const confirmed = window.confirm(
-      "Delete all rental alert records from the mansion database? This cannot be undone.",
+      `This will delete rental alert logs only from the selected date range: ${appliedFromDate} to ${appliedToDate}. Continue?`,
     );
 
     if (!confirmed) {
@@ -1403,7 +1408,8 @@ export default function RentalDashboard() {
     }
 
     try {
-      const response = await fetch("/api/rental-alerts", {
+      const query = buildDateRangeQuery({ fromDate: appliedFromDate, toDate: appliedToDate });
+      const response = await fetch(`/api/rental-alerts${query}`, {
         method: "DELETE",
       });
       const body: unknown = await response.json();
@@ -1425,7 +1431,7 @@ export default function RentalDashboard() {
       const refreshedAlerts = await reloadRentalAlerts(appliedFromDate, appliedToDate).catch(() => []);
       replaceRentalAlertStore(refreshedAlerts);
       setDatabaseMode("connected");
-      setDatabaseNotice("Database rental alert history cleared.");
+      setDatabaseNotice("Rental alert logs deleted for selected date range.");
       setWarning(null);
     } catch {
       setDatabaseMode("fallback");
@@ -1512,8 +1518,13 @@ export default function RentalDashboard() {
   };
 
   const handleClearAttendanceLogs = async () => {
+    if (appliedFromDate.trim().length === 0 || appliedToDate.trim().length === 0) {
+      setAttendanceNotice("Date range is required for delete.");
+      return;
+    }
+
     const confirmed = window.confirm(
-      "Delete all staff attendance logs? This does not delete workers or fingerprint mappings.",
+      `This will delete staff attendance logs only from the selected date range: ${appliedFromDate} to ${appliedToDate}. Continue?`,
     );
 
     if (!confirmed) {
@@ -1521,7 +1532,8 @@ export default function RentalDashboard() {
     }
 
     try {
-      const response = await fetch("/api/worker-attendance", {
+      const query = buildDateRangeQuery({ fromDate: appliedFromDate, toDate: appliedToDate });
+      const response = await fetch(`/api/worker-attendance${query}`, {
         method: "DELETE",
       });
       const body: unknown = await response.json();
@@ -1542,15 +1554,20 @@ export default function RentalDashboard() {
 
       const refreshedAttendance = await reloadWorkerAttendance(appliedFromDate, appliedToDate).catch(() => []);
       setAttendanceLogs(refreshedAttendance);
-      setAttendanceNotice("Staff attendance logs cleared.");
+      setAttendanceNotice("Attendance logs deleted for selected date range.");
     } catch {
       setAttendanceNotice("Unable to clear staff attendance logs.");
     }
   };
 
   const handleClearMessageLogs = async () => {
+    if (appliedFromDate.trim().length === 0 || appliedToDate.trim().length === 0) {
+      setMessageLogsNotice("Date range is required for delete.");
+      return;
+    }
+
     const confirmed = window.confirm(
-      "Delete all mock message logs? This does not delete rental alerts or attendance logs.",
+      `This will delete message logs only from the selected date range: ${appliedFromDate} to ${appliedToDate}. Continue?`,
     );
 
     if (!confirmed) {
@@ -1558,7 +1575,8 @@ export default function RentalDashboard() {
     }
 
     try {
-      const response = await fetch("/api/message-logs", {
+      const query = buildDateRangeQuery({ fromDate: appliedFromDate, toDate: appliedToDate });
+      const response = await fetch(`/api/message-logs${query}`, {
         method: "DELETE",
       });
       const body: unknown = await response.json();
@@ -1578,7 +1596,7 @@ export default function RentalDashboard() {
       }
 
       setMessageLogs([]);
-      setMessageLogsNotice("Message logs cleared.");
+      setMessageLogsNotice("Message logs deleted for selected date range.");
     } catch {
       setMessageLogsNotice("Unable to clear message logs.");
     }
@@ -2088,7 +2106,7 @@ export default function RentalDashboard() {
                 onClick={handleClearDatabaseHistory}
                 className="rounded-full border border-[#D4AF37]/60 bg-[#FFFFFF] px-4 py-2 text-sm font-medium text-[#0B1F3A] transition hover:bg-[#F5E6A8]/30"
               >
-                Clear Database History
+                Delete Rental Logs for Selected Date
               </button>
               <button
                 type="button"
@@ -2154,7 +2172,7 @@ export default function RentalDashboard() {
                 onClick={handleClearAttendanceLogs}
                 className="rounded-full border border-[#D4AF37]/60 bg-[#FFFFFF] px-4 py-2 text-sm font-medium text-[#0B1F3A] transition hover:bg-[#F5E6A8]/30"
               >
-                Clear Staff Attendance Logs
+                Delete Attendance Logs for Selected Date
               </button>
             </div>
           </div>
@@ -2223,7 +2241,7 @@ export default function RentalDashboard() {
               onClick={handleClearMessageLogs}
               className="rounded-full border border-[#D4AF37]/60 bg-[#FFFFFF] px-4 py-2 text-sm font-medium text-[#0B1F3A] transition hover:bg-[#F5E6A8]/30"
             >
-              Clear Message Logs
+              Delete Message Logs for Selected Date
             </button>
             <button
               type="button"
