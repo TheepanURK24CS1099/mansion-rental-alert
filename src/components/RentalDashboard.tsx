@@ -105,6 +105,9 @@ interface WorkerAttendanceApiRecord {
   worker: {
     name: string;
   };
+  rawStatus?: string;
+  displayStatus?: string;
+  dutyStatus?: string;
 }
 
 interface WorkerAttendanceRecord {
@@ -116,6 +119,8 @@ interface WorkerAttendanceRecord {
   source: string;
   workerName: string;
   createdAtMs: number;
+  displayStatus?: string;
+  dutyStatus?: string;
 }
 
 interface MessageLogApiRecord {
@@ -706,6 +711,12 @@ function parseWorkerAttendanceApiResponse(body: unknown): WorkerAttendanceRecord
         createdAtMs: Number.isFinite(new Date(item.createdAt).getTime())
           ? new Date(item.createdAt).getTime()
           : 0,
+        displayStatus: typeof (item as WorkerAttendanceApiRecord).displayStatus === "string"
+          ? (item as WorkerAttendanceApiRecord).displayStatus
+          : undefined,
+        dutyStatus: typeof (item as WorkerAttendanceApiRecord).dutyStatus === "string"
+          ? (item as WorkerAttendanceApiRecord).dutyStatus
+          : undefined,
       },
     ];
   });
@@ -1348,14 +1359,70 @@ export default function RentalDashboard() {
     return normalizedCounts;
   }, [alerts]);
 
-  const attendanceLogsWithDutyStatus = useMemo(
-    () =>
-      attendanceLogs.map((log) => ({
+  const attendanceLogsWithDutyStatus = useMemo(() => {
+    // Determine earliest IN scan per worker+date (first IN)
+    const earliestInMap = new Map<string, number>();
+
+    for (const log of attendanceLogs) {
+      if (log.status !== "IN") continue;
+      const key = `${log.workerName}|${log.attendanceDate}`;
+      const prev = earliestInMap.get(key);
+      if (prev === undefined || log.createdAtMs < prev) {
+        earliestInMap.set(key, log.createdAtMs);
+      }
+    }
+
+    function getIstMinutesFromDate(d: Date): number {
+      const parts = new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Asia/Kolkata",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).formatToParts(d);
+
+      const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+      const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+      return hour * 60 + minute;
+    }
+
+    return attendanceLogs.map((log) => {
+      const dutyStatus = typeof log.dutyStatus === "string" ? log.dutyStatus : getAttendanceDutyStatus(log);
+      // prefer server-provided displayStatus when present
+      let displayStatus: string = typeof log.displayStatus === "string" ? log.displayStatus : log.status;
+
+      // Only compute late detection when server did not provide displayStatus
+      if (log.status === "IN" && typeof log.displayStatus !== "string") {
+        const key = `${log.workerName}|${log.attendanceDate}`;
+        const earliest = earliestInMap.get(key);
+        if (earliest !== undefined && earliest === log.createdAtMs) {
+          const scanDate = getAttendanceScanTime(log);
+          const istMinutes = getIstMinutesFromDate(scanDate);
+
+          const name = log.workerName.trim().toLowerCase();
+          // in window end minutes per worker
+          let inEnd = 0;
+          if (name === "ananthi" || name === "suresh kumar") {
+            inEnd = 12 * 60 + 30; // 12:30
+          } else if (name === "periyaanna") {
+            inEnd = 23 * 60; // 23:00
+          }
+
+          if (inEnd > 0 && istMinutes > inEnd) {
+            displayStatus = "IN (Late)";
+          }
+        }
+      }
+
+      // dutyStatus override for late check-in
+      const effectiveDutyStatus = displayStatus === "IN (Late)" ? "Late Check-in" : dutyStatus;
+
+      return {
         ...log,
-        dutyStatus: getAttendanceDutyStatus(log),
-      })),
-    [attendanceLogs],
-  );
+        dutyStatus: effectiveDutyStatus,
+        displayStatus,
+      } as WorkerAttendanceRecord & { dutyStatus: string; displayStatus: string };
+    });
+  }, [attendanceLogs]);
 
   const reportSummary = useMemo(
     () => ({
@@ -1991,7 +2058,9 @@ export default function RentalDashboard() {
                   Database Mode: {databaseModeLabel}
                 </span>
                 <span className="rounded-full border border-[#FFFFFF]/40 bg-[#FFFFFF]/10 px-3 py-1 font-medium text-[#FFFFFF]">
-                  Secure Mock Environment
+                  {(databaseModeLabel === "Connected" && whatsappModeLabel === "Real" && deviceStatusLabel === "Connected")
+                    ? "Secure Production Environment"
+                    : "Secure Mock Environment"}
                 </span>
               </div>
 
@@ -2271,7 +2340,7 @@ export default function RentalDashboard() {
                       <td className="py-4 pr-4 font-medium">{log.attendanceTime}</td>
                       <td className="py-4 pr-4">{log.workerName}</td>
                       <td className="py-4 pr-4">{log.deviceUserId}</td>
-                      <td className="py-4 pr-4">{log.status}</td>
+                      <td className="py-4 pr-4">{log.displayStatus ?? log.status}</td>
                       <td className="py-4 pr-4">{log.dutyStatus}</td>
                       <td className="py-4">{log.source}</td>
                     </tr>
@@ -2293,7 +2362,9 @@ export default function RentalDashboard() {
             <div>
               <h3 className="text-2xl font-semibold text-[#0B1F3A]">Message Logs</h3>
               <p className="mt-1 text-sm text-[#64748B]" data-testid="message-logs-subtitle">
-                Mock WhatsApp message history. No real WhatsApp is sent in this version.
+                {whatsappModeLabel === "Real"
+                  ? "WhatsApp message history. Real WhatsApp alerts are enabled."
+                  : "Mock WhatsApp message history. No real WhatsApp is sent in this version."}
               </p>
             </div>
             <div className="rounded-2xl border border-[#D4AF37]/30 bg-[#F8FAFC] px-4 py-3 text-sm text-[#64748B]">

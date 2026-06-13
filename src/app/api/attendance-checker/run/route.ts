@@ -83,7 +83,8 @@ export async function POST(req: Request) {
 
     const results: Array<{
       workerName: string;
-      status: string;
+      status: string; // display status for messages/UI (e.g. "IN (Late)")
+      rawStatus: string; // internal evaluator status (e.g. "Late")
       attendanceDate: string;
       attendanceTime: string;
       dutyStatus: string;
@@ -157,13 +158,16 @@ export async function POST(req: Request) {
           } as any);
         }
 
+        const displayStatus = evaluation.status === "Late" ? "IN (Late)" : evaluation.status;
+        const dutyStatus = evaluation.status === "Late" ? "Late Check-in" : evaluation.dutyStatus;
+
         const existing = await prisma.messageLog.findFirst({
           where: {
             messageType: "STAFF_ATTENDANCE",
             AND: [
               { templateVariables: { path: ["workerName"], equals: matchedWorkerName } },
               { templateVariables: { path: ["attendanceDate"], equals: attendanceDate } },
-              { templateVariables: { path: ["status"], equals: evaluation.status } },
+              { templateVariables: { path: ["status"], equals: displayStatus } },
             ],
           },
         });
@@ -173,10 +177,11 @@ export async function POST(req: Request) {
         const out = [
           {
             workerName: matchedWorkerName,
-            status: evaluation.status,
+            status: displayStatus,
+            rawStatus: evaluation.status,
             attendanceDate: evaluation.attendanceDate,
             attendanceTime: evaluation.attendanceTime,
-            dutyStatus: evaluation.dutyStatus,
+            dutyStatus,
             reason: evaluation.reason,
             duplicate,
           },
@@ -186,10 +191,10 @@ export async function POST(req: Request) {
           await createMockStaffAttendanceMessageLog({
             recipient: ownerWhatsAppNumber,
             workerName: matchedWorkerName,
-            status: evaluation.status,
+            status: displayStatus,
             attendanceDate: evaluation.attendanceDate,
             attendanceTime: evaluation.attendanceTime,
-            dutyStatus: evaluation.dutyStatus,
+            dutyStatus,
             messageStatus: "MOCK_SENT",
           });
         }
@@ -232,6 +237,7 @@ export async function POST(req: Request) {
         {
           workerName: synthesized.workerName,
           status: synthesized.status,
+          rawStatus: synthesized.status,
           attendanceDate: synthesized.attendanceDate,
           attendanceTime: synthesized.attendanceTime,
           dutyStatus: synthesized.dutyStatus,
@@ -303,14 +309,18 @@ export async function POST(req: Request) {
         }
       }
 
-      // Ensure there is no existing message for same worker + attendanceDate + status
+      // Map evaluator status to display status (keep rawStatus for internal use)
+      const displayStatus = evaluation.status === "Late" ? "IN (Late)" : evaluation.status;
+      const dutyStatus = evaluation.status === "Late" ? "Late Check-in" : evaluation.dutyStatus;
+
+      // Ensure there is no existing message for same worker + attendanceDate + display status
       const existing = await prisma.messageLog.findFirst({
         where: {
           messageType: "STAFF_ATTENDANCE",
           AND: [
             { templateVariables: { path: ["workerName"], equals: worker.name } },
             { templateVariables: { path: ["attendanceDate"], equals: evaluation.attendanceDate } },
-            { templateVariables: { path: ["status"], equals: evaluation.status } },
+            { templateVariables: { path: ["status"], equals: displayStatus } },
           ],
         },
       });
@@ -319,10 +329,11 @@ export async function POST(req: Request) {
 
       results.push({
         workerName: worker.name,
-        status: evaluation.status,
+        status: displayStatus,
+        rawStatus: evaluation.status,
         attendanceDate: evaluation.attendanceDate,
         attendanceTime: evaluation.attendanceTime,
-        dutyStatus: evaluation.dutyStatus,
+        dutyStatus,
         reason: evaluation.reason,
         duplicate,
       });
@@ -331,10 +342,10 @@ export async function POST(req: Request) {
         await createMockStaffAttendanceMessageLog({
           recipient: ownerWhatsAppNumber,
           workerName: worker.name,
-          status: evaluation.status,
+          status: displayStatus,
           attendanceDate: evaluation.attendanceDate,
           attendanceTime: evaluation.attendanceTime,
-          dutyStatus: evaluation.dutyStatus,
+          dutyStatus,
           messageStatus: "MOCK_SENT",
         });
       }

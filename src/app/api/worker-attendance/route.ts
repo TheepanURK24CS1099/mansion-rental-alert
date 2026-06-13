@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { formatIstDate } from "@/lib/mansionDutyStatus";
+import { formatIstDate, getMansionDutyStatus } from "@/lib/mansionDutyStatus";
 
 interface WorkerAttendancePayload {
   workerId?: unknown;
@@ -26,8 +26,9 @@ function isAttendanceStatus(value: unknown): value is "IN" | "OUT" {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const fromDate = searchParams.get("from");
-    const toDate = searchParams.get("to");
+    // support both `from`/`to` (existing UI) and `fromDate`/`toDate` (external callers)
+    const fromDate = searchParams.get("fromDate") ?? searchParams.get("from");
+    const toDate = searchParams.get("toDate") ?? searchParams.get("to");
 
     const where: {
       attendanceDate?: { in: string[] };
@@ -69,7 +70,79 @@ export async function GET(request: Request) {
       },
     });
 
-    return NextResponse.json({ success: true, data: logs });
+    // Augment each log with rawStatus, displayStatus and dutyStatus
+    function parseTimeToMinutes(timeText: unknown): number | null {
+      if (typeof timeText !== "string") return null;
+      const m = timeText.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+      if (!m) return null;
+      let hour = Number(m[1]);
+      const minute = Number(m[2]);
+      const period = m[3].toUpperCase();
+      if (period === "PM" && hour !== 12) hour += 12;
+      if (period === "AM" && hour === 12) hour = 0;
+      return hour * 60 + minute;
+    }
+
+    function parseAttendanceDateTimeToDate(attDate: unknown, attTime: unknown): Date | null {
+      if (typeof attDate !== "string" || typeof attTime !== "string") return null;
+      // reuse same parsing logic as client: "MonthName D, YYYY" and "hh:mm AM/PM"
+      const dateMatch = attDate.trim().match(/^([A-Za-z]+)\s+(\d{1,2}),\s*(\d{4})$/);
+      const timeMatch = attTime.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+      if (!dateMatch || !timeMatch) return null;
+      const [, monthName, dayText, yearText] = dateMatch;
+      const [, hourText, minuteText, period] = timeMatch;
+      const monthNames = [
+        "January","February","March","April","May","June","July","August","September","October","November","December",
+      ];
+      const month = monthNames.indexOf(monthName);
+      const day = Number(dayText);
+      const year = Number(yearText);
+      let hour = Number(hourText);
+      const minute = Number(minuteText);
+      if (period.toUpperCase() === "PM" && hour !== 12) hour += 12;
+      else if (period.toUpperCase() === "AM" && hour === 12) hour = 0;
+      // convert to UTC ms by subtracting IST offset (5.5 hours)
+      const utcMs = Date.UTC(year, month, day, hour, minute) - 5.5 * 60 * 60 * 1000;
+      return new Date(utcMs);
+    }
+
+    const augmented = logs.map((log) => {
+      const rawStatus = log.status;
+      let displayStatus = String(rawStatus);
+      // compute dutyStatus using getMansionDutyStatus if possible
+      const scanDate = parseAttendanceDateTimeToDate(log.attendanceDate, log.attendanceTime) ?? log.createdAt;
+      const dutyStatus = getMansionDutyStatus(log.worker?.name ?? "", scanDate instanceof Date ? scanDate : new Date());
+
+      if (rawStatus === "IN") {
+        const minutes = parseTimeToMinutes(log.attendanceTime);
+        const name = (log.worker?.name ?? "").toString().trim().toLowerCase();
+        let inEnd = 0;
+        if (name === "ananthi" || name === "suresh kumar") {
+          inEnd = 12 * 60 + 30; // 12:30
+        } else if (name === "periyaanna") {
+          inEnd = 23 * 60; // 23:00
+        }
+
+        if (inEnd > 0 && minutes !== null && minutes > inEnd) {
+          displayStatus = "IN (Late)";
+        } else {
+          displayStatus = "IN";
+        }
+      } else {
+        displayStatus = String(rawStatus);
+      }
+
+      const effectiveDutyStatus = displayStatus === "IN (Late)" ? "Late Check-in" : dutyStatus;
+
+      return {
+        ...log,
+        rawStatus,
+        displayStatus,
+        dutyStatus: effectiveDutyStatus,
+      };
+    });
+
+    return NextResponse.json({ success: true, data: augmented });
   } catch (error) {
     console.error("GET /api/worker-attendance error:", error);
     return NextResponse.json(
