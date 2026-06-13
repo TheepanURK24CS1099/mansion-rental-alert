@@ -145,8 +145,27 @@ export function evaluateAttendanceStatus(
   const outEndMinutes = parseTimeToMinutes(schedule.outEnd);
   const hasAnyScan = todayLogs.length > 0;
 
+  // Build IST-based shift end datetime for the attendanceDate so we can
+  // properly handle overnight/night shifts (where OUT window is on next day).
+  const dateIso = new Intl.DateTimeFormat("en-CA", { timeZone: IST_TIME_ZONE }).format(now); // YYYY-MM-DD
+  const dayStartIst = new Date(`${dateIso}T00:00:00+05:30`);
+
+  const [outEndHourText, outEndMinuteText] = schedule.outEnd.split(":");
+  const outEndHour = Number(outEndHourText);
+  const outEndMinute = Number(outEndMinuteText);
+
+  const [inStartHourText, inStartMinuteText] = schedule.inStart.split(":");
+  const inStartMinutes = parseTimeToMinutes(schedule.inStart);
+
+  const outEndDate = new Date(dayStartIst);
+  // If OUT window falls before IN window minutes-wise, it belongs to next day (overnight shift)
+  if (parseTimeToMinutes(schedule.outEnd) <= inStartMinutes) {
+    outEndDate.setDate(outEndDate.getDate() + 1);
+  }
+  outEndDate.setHours(outEndHour, outEndMinute, 0, 0);
+
   if (!hasAnyScan) {
-    if (currentMinutes >= outEndMinutes) {
+    if (now >= outEndDate) {
       return {
         workerName,
         attendanceDate,
@@ -191,7 +210,7 @@ export function evaluateAttendanceStatus(
     };
   }
 
-  if (currentMinutes >= outEndMinutes && !firstOutScan) {
+  if (now >= outEndDate && !firstOutScan) {
     return {
       workerName,
       attendanceDate,
