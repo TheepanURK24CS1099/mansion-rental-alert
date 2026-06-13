@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { formatIstDate } from "@/lib/mansionDutyStatus";
 
 interface WorkerAttendancePayload {
   workerId?: unknown;
@@ -29,20 +30,31 @@ export async function GET(request: Request) {
     const toDate = searchParams.get("to");
 
     const where: {
-      createdAt?: {
-        gte?: Date;
-        lte?: Date;
-      };
+      attendanceDate?: { in: string[] };
     } = {};
 
-    if (fromDate && /^\d{4}-\d{2}-\d{2}$/.test(fromDate)) {
-      where.createdAt = where.createdAt || {};
-      where.createdAt.gte = new Date(`${fromDate}T00:00:00Z`);
-    }
+    if (
+      fromDate &&
+      toDate &&
+      /^\d{4}-\d{2}-\d{2}$/.test(fromDate) &&
+      /^\d{4}-\d{2}-\d{2}$/.test(toDate)
+    ) {
+      const fromParts = fromDate.split("-").map(Number);
+      const toParts = toDate.split("-").map(Number);
+      const from = new Date(Date.UTC(fromParts[0], fromParts[1] - 1, fromParts[2]));
+      const to = new Date(Date.UTC(toParts[0], toParts[1] - 1, toParts[2]));
 
-    if (toDate && /^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
-      where.createdAt = where.createdAt || {};
-      where.createdAt.lte = new Date(`${toDate}T23:59:59Z`);
+      if (!Number.isNaN(from.getTime()) && !Number.isNaN(to.getTime()) && from <= to) {
+        const dates: string[] = [];
+        let current = from;
+
+        while (current <= to) {
+          dates.push(formatIstDate(current));
+          current = new Date(current.getTime() + 24 * 60 * 60 * 1000);
+        }
+
+        where.attendanceDate = { in: dates };
+      }
     }
 
     const logs = await prisma.workerAttendance.findMany({

@@ -52,11 +52,20 @@ export interface DeviceScanDuplicate {
   message: string;
 }
 
+export interface DeviceScanIgnored {
+  success: true;
+  type: "attendance_limit_reached" | "attendance_ignored" | "ignored";
+  message: string;
+}
+
 export type DeviceScanResult =
   | DeviceScanSuccessAttendance
   | DeviceScanSuccessRental
   | DeviceScanFailure
   | DeviceScanDuplicate;
+
+// Include ignored/limit result
+export type ExtendedDeviceScanResult = DeviceScanResult | DeviceScanIgnored;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -86,7 +95,7 @@ function formatDateParts(timestamp: number): { date: string; time: string } {
  */
 export async function processDeviceScan(
   input: DeviceScanInput,
-): Promise<DeviceScanResult> {
+): Promise<ExtendedDeviceScanResult> {
   try {
     // 1. Look up the mapping ──────────────────────────────────────────────────
     const mapping = await prisma.workerFingerMapping.findUnique({
@@ -225,19 +234,51 @@ export async function processDeviceScan(
         };
       }
 
-      const latestAttendance = mapping.worker.attendanceLogs[0];
-      const nextStatus = latestAttendance?.status === "IN" ? "OUT" : "IN";
-      const dutyStatus = getMansionDutyStatus(mapping.worker.name, currentScanTime);
       const attendanceDateIst = formatIstDate(currentScanTime);
       const attendanceTimeIst = formatTimeIST(currentScanTime);
+
+      const sameDayCount = await prisma.workerAttendance.count({
+        where: {
+          workerId: mapping.workerId,
+          attendanceDate: attendanceDateIst,
+        },
+      });
+
+      // Enforce limit: allow only first IN and second OUT per IST date.
+      if (sameDayCount >= 2) {
+        // Log the ignored attendance scan but do not create a WorkerAttendance
+        // record or send any message logs.
+        await prisma.deviceScanLog.create({
+          data: {
+            deviceUserId: input.deviceUserId,
+            workerId: mapping.workerId,
+            workerName: mapping.worker.name,
+            actionType: mapping.actionType,
+            scanTime: currentScanTime,
+            source,
+            processingStatus: "PROCESSED",
+            resultType: "ATTENDANCE_IGNORED",
+            errorMessage: "Daily IN/OUT already completed.",
+          },
+        });
+
+        return {
+          success: true,
+          type: "attendance_limit_reached",
+          message: "Daily IN/OUT already completed.",
+        } as DeviceScanIgnored;
+      }
+
+      const nextStatus = sameDayCount % 2 === 0 ? "IN" : "OUT";
+      const dutyStatus = getMansionDutyStatus(mapping.worker.name, currentScanTime);
 
       const attendance = await prisma.workerAttendance.create({
         data: {
           workerId: mapping.workerId,
           deviceUserId: mapping.deviceUserId,
           status: nextStatus,
-          attendanceDate: parts.date,
-          attendanceTime: parts.time,
+          attendanceDate: attendanceDateIst,
+          attendanceTime: attendanceTimeIst,
           source,
         },
       });
@@ -361,8 +402,10 @@ export async function processDeviceScan(
         updatedBy: mapping.worker.name,
         source: input.source,
         messageStatus: "Mock Sent",
-        alertDate: parts.date,
-        alertTime: parts.time,
+        alertDate: (function formatIstDateIso(scanTime: Date) {
+          return scanTime.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+        })(currentScanTime),
+        alertTime: formatTimeIST(currentScanTime),
       },
     });
 

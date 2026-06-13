@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { formatIstDate } from "@/lib/mansionDutyStatus";
 import {
   createMockRentalAlertMessageLog,
 } from "@/lib/messageService";
@@ -93,21 +94,31 @@ export async function GET(request: Request) {
     const fromDate = searchParams.get("from");
     const toDate = searchParams.get("to");
 
-    const where: {
-      createdAt?: {
-        gte?: Date;
-        lte?: Date;
-      };
-    } = {};
+    const where: { alertDate?: { in: string[] } } = {};
 
-    if (fromDate && /^\d{4}-\d{2}-\d{2}$/.test(fromDate)) {
-      where.createdAt = where.createdAt || {};
-      where.createdAt.gte = new Date(`${fromDate}T00:00:00Z`);
-    }
+    if (
+      fromDate &&
+      toDate &&
+      /^\d{4}-\d{2}-\d{2}$/.test(fromDate) &&
+      /^\d{4}-\d{2}-\d{2}$/.test(toDate)
+    ) {
+      const fromParts = fromDate.split("-").map(Number);
+      const toParts = toDate.split("-").map(Number);
+      const from = new Date(Date.UTC(fromParts[0], fromParts[1] - 1, fromParts[2]));
+      const to = new Date(Date.UTC(toParts[0], toParts[1] - 1, toParts[2]));
 
-    if (toDate && /^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
-      where.createdAt = where.createdAt || {};
-      where.createdAt.lte = new Date(`${toDate}T23:59:59Z`);
+      if (!Number.isNaN(from.getTime()) && !Number.isNaN(to.getTime()) && from <= to) {
+        const dates: string[] = [];
+        let current = from;
+
+        while (current <= to) {
+          // produce IST ISO date (YYYY-MM-DD)
+          dates.push(current.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }));
+          current = new Date(current.getTime() + 24 * 60 * 60 * 1000);
+        }
+
+        where.alertDate = { in: dates };
+      }
     }
 
     const alerts = await prisma.rentalAlert.findMany({
@@ -199,14 +210,32 @@ export async function DELETE(request: Request) {
       );
     }
 
-    const result = await prisma.rentalAlert.deleteMany({
-      where: {
-        createdAt: {
-          gte: new Date(`${fromDate}T00:00:00Z`),
-          lte: new Date(`${toDate}T23:59:59Z`),
+    // Delete by scan-derived alertDate (IST YYYY-MM-DD) rather than createdAt
+    const fromParts = fromDate.split("-").map(Number);
+    const toParts = toDate.split("-").map(Number);
+    const from = new Date(Date.UTC(fromParts[0], fromParts[1] - 1, fromParts[2]));
+    const to = new Date(Date.UTC(toParts[0], toParts[1] - 1, toParts[2]));
+
+    let result;
+    if (!Number.isNaN(from.getTime()) && !Number.isNaN(to.getTime()) && from <= to) {
+      const dates: string[] = [];
+      let current = from;
+
+      while (current <= to) {
+        dates.push(current.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }));
+        current = new Date(current.getTime() + 24 * 60 * 60 * 1000);
+      }
+
+      result = await prisma.rentalAlert.deleteMany({
+        where: {
+          alertDate: {
+            in: dates,
+          },
         },
-      },
-    });
+      });
+    } else {
+      result = await prisma.rentalAlert.deleteMany({ where: {} });
+    }
 
     return NextResponse.json({
       success: true,

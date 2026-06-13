@@ -711,13 +711,70 @@ function parseWorkerAttendanceApiResponse(body: unknown): WorkerAttendanceRecord
   });
 }
 
+function parseAttendanceDateTime(attendanceDate: string, attendanceTime: string): Date | null {
+  const dateText = attendanceDate?.trim();
+  const timeText = attendanceTime?.trim();
+
+  if (!dateText || !timeText) {
+    return null;
+  }
+
+  const dateMatch = dateText.match(/^([A-Za-z]+)\s+(\d{1,2}),\s*(\d{4})$/);
+  const timeMatch = timeText.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+
+  if (!dateMatch || !timeMatch) {
+    return null;
+  }
+
+  const [, monthName, dayText, yearText] = dateMatch;
+  const [, hourText, minuteText, period] = timeMatch;
+
+  const monthNames = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ];
+  const month = monthNames.indexOf(monthName);
+  const day = Number(dayText);
+  const year = Number(yearText);
+  let hour = Number(hourText);
+  const minute = Number(minuteText);
+
+  if (Number.isNaN(month) || month < 0 || Number.isNaN(day) || Number.isNaN(year) || Number.isNaN(hour) || Number.isNaN(minute)) {
+    return null;
+  }
+
+  if (period.toUpperCase() === "PM" && hour !== 12) {
+    hour += 12;
+  } else if (period.toUpperCase() === "AM" && hour === 12) {
+    hour = 0;
+  }
+
+  const utcMs = Date.UTC(year, month, day, hour, minute) - 5.5 * 60 * 60 * 1000;
+  return new Date(utcMs);
+}
+
 function getAttendanceScanTime(log: WorkerAttendanceRecord): Date {
+  const scanBasedDate = parseAttendanceDateTime(log.attendanceDate, log.attendanceTime);
+
+  if (scanBasedDate) {
+    return scanBasedDate;
+  }
+
   if (Number.isFinite(log.createdAtMs) && log.createdAtMs > 0) {
     return new Date(log.createdAtMs);
   }
 
-  const fallback = new Date(`${log.attendanceDate} ${log.attendanceTime}`);
-  return Number.isNaN(fallback.getTime()) ? new Date() : fallback;
+  return new Date();
 }
 
 function getAttendanceDutyStatus(log: WorkerAttendanceRecord): string {

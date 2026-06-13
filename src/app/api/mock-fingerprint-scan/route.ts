@@ -79,12 +79,35 @@ export async function POST(request: Request) {
       });
     }
 
-    return NextResponse.json({
-      success: true,
-      type: "rental",
-      roomType: result.roomType,
-      workerName: result.workerName,
-    });
+    if (
+      result.type === "attendance_limit_reached" ||
+      result.type === "attendance_ignored" ||
+      result.type === "ignored"
+    ) {
+      return NextResponse.json({
+        success: true,
+        type: result.type,
+        message: (result as any).message,
+      });
+    }
+
+    if (result.type === "rental") {
+      const r = result as {
+        type: "rental";
+        roomType: string;
+        workerName: string;
+      };
+
+      return NextResponse.json({
+        success: true,
+        type: "rental",
+        roomType: r.roomType,
+        workerName: r.workerName,
+      });
+    }
+
+    // Unknown success shape — return a generic success payload
+    return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json(
       { success: false, error: "Unable to process mock scan." },
