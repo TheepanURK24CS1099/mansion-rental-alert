@@ -845,6 +845,16 @@ function parseMessageLogsApiResponse(body: unknown): MessageLogRecord[] {
   });
 }
 
+interface AttendanceCheckerResult {
+  workerName: string;
+  status: string;
+  attendanceDate: string;
+  attendanceTime: string;
+  dutyStatus: string;
+  reason: string;
+  duplicate: boolean;
+}
+
 export default function RentalDashboard() {
   const [isLoadingAlerts, setIsLoadingAlerts] = useState(true);
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
@@ -874,6 +884,8 @@ export default function RentalDashboard() {
   const [appliedFromDate, setAppliedFromDate] = useState(getTodayDateInputValue());
   const [appliedToDate, setAppliedToDate] = useState(getTodayDateInputValue());
   const [hasLoadedDashboardData, setHasLoadedDashboardData] = useState(false);
+  const [attendanceCheckerResults, setAttendanceCheckerResults] = useState<AttendanceCheckerResult[]>([]);
+  const [isRunningAttendanceChecker, setIsRunningAttendanceChecker] = useState(false);
   const alerts = useSyncExternalStore(
     subscribeToRentalAlertStore,
     getRentalAlertSnapshot,
@@ -2184,7 +2196,7 @@ export default function RentalDashboard() {
                   <th className="pb-3 pr-4 font-medium">Device User ID</th>
                   <th className="pb-3 pr-4 font-medium">Updated By</th>
                   <th className="pb-3 pr-4 font-medium">Source</th>
-                  <th className="pb-3 font-medium">Message Status</th>
+                  <th className="pb-3 pr-4 font-medium">Message Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F1F5F9] text-[#0B1F3A]">
